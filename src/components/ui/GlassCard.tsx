@@ -1,40 +1,37 @@
 'use client';
 
 import React from 'react';
-import { motion, type HTMLMotionProps } from 'framer-motion';
+import { PaperCard } from './PaperCard';
 
-interface GlassCardProps extends Omit<HTMLMotionProps<'div'>, 'ref'> {
-  variant?: 'light' | 'dark';
-  hoverGlow?: boolean;
-  gradientBorder?: boolean;
+export interface GlassCardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
   className?: string;
+  variant?: 'light' | 'dark' | string;
   delay?: number;
+  hoverGlow?: boolean;
+  gradientBorder?: boolean;
+  interactive?: boolean;
 }
 
-export default function GlassCard({
-  variant = 'light',
-  hoverGlow = false,
-  gradientBorder = false,
+/**
+ * Legacy GlassCard component refactored for ZERO × SkillBridge minimal design system.
+ * Glassmorphism removed in favor of clean paper card aesthetics.
+ */
+export function GlassCard({
   children,
   className = '',
-  delay = 0,
-  ...rest
+  variant = 'light',
+  delay,
+  hoverGlow,
+  gradientBorder,
+  interactive,
+  ...props
 }: GlassCardProps) {
-  const baseClass = variant === 'dark' ? 'glass-card-dark' : 'glass-card';
-  const glowClass = hoverGlow ? 'hover:shadow-[0_0_30px_var(--accent-glow)]' : '';
-  const borderClass = gradientBorder ? 'gradient-border' : '';
-
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-40px' }}
-      transition={{ duration: 0.4, delay, ease: [0.33, 1, 0.68, 1] }}
-      className={`${baseClass} ${glowClass} ${borderClass} ${className}`}
-      {...rest}
-    >
+    <PaperCard className={className} interactive={interactive} {...props}>
       {children}
-    </motion.div>
+    </PaperCard>
   );
 }
+
+export default GlassCard;

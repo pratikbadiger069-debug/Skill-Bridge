@@ -3,29 +3,23 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useAppStore } from '@/lib/store';
-import { getLevelInfo } from '@/lib/xp-engine';
 import {
   Home,
-  MapPin,
-  Bot,
-  Settings,
-  Users,
-  Building,
-  FileSpreadsheet,
-  LineChart,
-  UserCheck,
-  TrendingUp,
-  Briefcase,
-  FileCheck,
-  Code,
-  Layers,
-  Sparkles,
+  GraduationCap,
+  FolderGit2,
   CheckCircle2,
-  Compass,
+  Bot,
+  Users2,
+  Briefcase,
+  Award,
+  MessageSquare,
+  Settings,
+  Sparkles,
 } from 'lucide-react';
+import { useAppStore } from '@/lib/store';
+import { getLevelInfo } from '@/lib/xp-engine';
 
-interface NavItem {
+interface NavSection {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -34,81 +28,59 @@ interface NavItem {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { currentRole, xp } = useAppStore();
+  const { xp } = useAppStore();
   const levelInfo = getLevelInfo(xp);
 
-  const studentLinks: NavItem[] = [
+  // Exact 10 main sections from ZERO × SkillBridge spec
+  const navSections: NavSection[] = [
     { name: 'Home', href: '/student', icon: Home },
-    { name: 'My Journey', href: '/student/journey', icon: MapPin },
-    { name: 'Assessments', href: '/student/assessments', icon: CheckCircle2 },
-    { name: 'Digital Portfolio', href: '/student/portfolio', icon: FileCheck },
-    { name: 'Career Copilot', href: '/student/career-copilot', icon: Bot },
-    { name: 'Opportunities', href: '/student/opportunities', icon: Compass },
-    { name: 'Applications', href: '/student/applications', icon: Layers },
-    { name: 'Collaborations', href: '/student/collaborations', icon: Sparkles },
-    { name: 'Settings', href: '/student/settings', icon: Settings },
+    { name: 'Smart Classroom', href: '/classroom', icon: GraduationCap, badge: 'Live' },
+    { name: 'Projects', href: '/projects', icon: FolderGit2 },
+    { name: 'Assessments', href: '/assessments', icon: CheckCircle2 },
+    { name: 'Career Copilot', href: '/copilot', icon: Bot },
+    { name: 'Community', href: '/community', icon: Users2 },
+    { name: 'Opportunities', href: '/opportunities', icon: Briefcase, badge: 'Hot' },
+    { name: 'Builder Passport', href: '/passport', icon: Award },
+    { name: 'Messages', href: '/messages', icon: MessageSquare },
+    { name: 'Settings', href: '/settings', icon: Settings },
   ];
-
-  const instituteLinks: NavItem[] = [
-    { name: 'Dashboard', href: '/institute', icon: Home },
-    { name: 'Students Roster', href: '/institute/students', icon: Users },
-    { name: 'Faculty Portal', href: '/faculty', icon: UserCheck },
-    { name: 'Departments', href: '/institute/departments', icon: Building },
-    { name: 'Curriculum Analysis', href: '/institute/curriculum', icon: FileSpreadsheet },
-    { name: 'Placement Cell', href: '/institute/placement', icon: TrendingUp },
-    { name: 'Collaborations', href: '/collaborations', icon: Sparkles },
-    { name: 'Reports', href: '/institute/reports', icon: LineChart },
-    { name: 'Settings', href: '/institute/settings', icon: Settings },
-  ];
-
-  const industryLinks: NavItem[] = [
-    { name: 'Dashboard', href: '/industry', icon: Home },
-    { name: 'Job Requirements', href: '/industry/jobs', icon: Briefcase },
-    { name: 'Talent Discovery', href: '/industry/talent', icon: Sparkles },
-    { name: 'Pipeline', href: '/industry/pipeline', icon: Layers },
-    { name: 'Collaborations', href: '/collaborations', icon: UserCheck },
-    { name: 'Assignments', href: '/industry/assignments', icon: Code },
-    { name: 'Reports', href: '/industry/reports', icon: LineChart },
-    { name: 'Settings', href: '/industry/settings', icon: Settings },
-  ];
-
-  const adminLinks: NavItem[] = [
-    { name: 'Dashboard', href: '/admin', icon: Home },
-    { name: 'Skill Demand Intel', href: '/admin/demand', icon: TrendingUp },
-    { name: 'User Management', href: '/admin/users', icon: Users },
-    { name: 'Content Management', href: '/admin/content', icon: FileCheck },
-    { name: 'Settings', href: '/admin/settings', icon: Settings },
-  ];
-
-  const links: NavItem[] =
-    currentRole === 'student'
-      ? studentLinks
-      : currentRole === 'institute'
-      ? instituteLinks
-      : currentRole === 'industry'
-      ? industryLinks
-      : adminLinks;
 
   return (
-    <aside className="w-60 bg-transparent border-r border-[#E8E5DD] flex flex-col shrink-0 min-h-[calc(100vh-3.5rem)] p-4">
-      {/* Navigation Links */}
-      <nav className="flex-1 space-y-1">
-        {links.map((item) => {
+    <aside className="hidden md:flex fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-[#E8E5DD] flex-col z-40 select-none">
+      {/* Brand Header */}
+      <div className="h-16 px-6 border-b border-[#E8E5DD] flex items-center gap-3 shrink-0">
+        <div className="w-8 h-8 rounded-xl bg-[#1B1B1B] text-white flex items-center justify-center font-heading font-bold text-xs">
+          0×
+        </div>
+        <div className="flex flex-col">
+          <span className="font-heading text-sm font-bold tracking-tight text-[#1B1B1B]">
+            ZERO × SkillBridge
+          </span>
+          <span className="text-[10px] text-[#6F6A60] tracking-wider uppercase font-semibold">
+            Production OS
+          </span>
+        </div>
+      </div>
+
+      {/* Fixed Navigation Links */}
+      <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+        {navSections.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          const isActive = pathname === item.href || (item.href !== '/student' && pathname.startsWith(item.href));
+
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center justify-between px-3.5 py-2.5 text-xs rounded-xl font-medium transition-all ${
+              className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 ${
                 isActive
-                  ? 'bg-[#1B1B1B] text-white font-semibold shadow-xs'
-                  : 'text-[#6F6A60] hover:text-[#1B1B1B] hover:bg-black/4'
+                  ? 'bg-[#1B1B1B] text-white shadow-xs'
+                  : 'text-[#6F6A60] hover:text-[#1B1B1B] hover:bg-[#F6F4EE]'
               }`}
             >
               <div className="flex items-center gap-3">
                 <Icon
-                  className={`w-4 h-4 ${
+                  className={`w-4 h-4 shrink-0 ${
                     isActive ? 'text-[#C76A2A]' : 'text-[#6F6A60]'
                   }`}
                 />
@@ -120,7 +92,7 @@ export function Sidebar() {
                   className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
                     isActive
                       ? 'bg-white/20 text-white'
-                      : 'bg-[#E8E5DD] text-[#6F6A60]'
+                      : 'bg-[#C76A2A]/10 text-[#C76A2A]'
                   }`}
                 >
                   {item.badge}
@@ -131,30 +103,32 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Builder Status Pill */}
-      {currentRole === 'student' && (
-        <div className="p-3.5 bg-white rounded-2xl border border-[#E8E5DD] text-xs space-y-2 mt-auto shadow-xs">
+      {/* Builder Passport Footer Card */}
+      <div className="p-4 border-t border-[#E8E5DD] shrink-0">
+        <div className="p-3.5 bg-[#F6F4EE] rounded-2xl border border-[#E8E5DD] space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
-              <span className="text-[11px] font-semibold text-[#1B1B1B]">
-                Level {levelInfo.level} {levelInfo.title}
+              <span className="text-xs font-bold text-[#1B1B1B]">
+                Lvl {levelInfo.level} {levelInfo.title}
               </span>
               <span className="text-[10px] text-[#6F6A60]">
-                Rank #{levelInfo.rank} • {levelInfo.nextLevelXP - levelInfo.currentLevelProgress} XP to Lvl {levelInfo.level + 1}
+                Rank #{levelInfo.rank} • Builder Status
               </span>
             </div>
-            <span className="text-[11px] font-mono font-semibold text-[#C76A2A]">
+            <span className="text-xs font-mono font-bold text-[#C76A2A]">
               {xp} XP
             </span>
           </div>
+
+          {/* Progress Bar */}
           <div className="w-full h-1.5 bg-[#E8E5DD] rounded-full overflow-hidden">
             <div
-              className="h-full bg-[#C76A2A] rounded-full transition-all duration-500"
+              className="h-full bg-[#C76A2A] rounded-full transition-all duration-300"
               style={{ width: `${levelInfo.percentToNext}%` }}
             />
           </div>
         </div>
-      )}
+      </div>
     </aside>
   );
 }

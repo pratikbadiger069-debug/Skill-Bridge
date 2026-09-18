@@ -1,57 +1,97 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { dbService } from '@/lib/server-db';
-import { signToken, getAuthCookieOptions } from '@/lib/auth-jwt';
-import { checkRateLimit } from '@/lib/security';
-import { registerSchema } from '@/lib/validations';
+import {
+  checkRateLimit,
+  generateAccessToken,
+  generateRefreshToken,
+  setAuthCookies,
+  verifyCaptchaToken,
+} from '@/lib/auth-security';
 
 export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get('x-forwarded-for') || '127.0.0.1';
-    const rateCheck = checkRateLimit(`register_${ip}`, 8, 60000); // 8 registers per minute
+    const rateCheck = checkRateLimit(`register_${ip}`, 8, 15 * 60 * 1000);
     if (!rateCheck.allowed) {
       return NextResponse.json(
-        { error: 'Too many registration requests. Please wait a moment before trying again.' },
+        { error: 'Too many registration requests. Please wait a few minutes.' },
         { status: 429 }
       );
     }
 
-    const rawBody = await req.json();
-    const parseResult = registerSchema.safeParse(rawBody);
+    const body = await req.json();
+    const {
+      name,
+      email,
+      password,
+      role = 'student',
+      department,
+      year,
+      section,
+      college,
+      githubUsername,
+      careerGoal,
+      captchaToken,
+      expectedCaptcha,
+    } = body;
 
-    if (!parseResult.success) {
-      const firstError = parseResult.error.issues[0]?.message || 'Invalid registration details.';
-      return NextResponse.json({ error: firstError }, { status: 400 });
+    if (!name || !email || !password) {
+      return NextResponse.json(
+        { error: 'Name, email, and password are required.' },
+        { status: 400 }
+      );
     }
 
-    const { name, email, password, role } = parseResult.data;
-    const result = dbService.registerUser(name, email, role, password);
+    // CAPTCHA check
+    if (expectedCaptcha && !verifyCaptchaToken(captchaToken, expectedCaptcha)) {
+      return NextResponse.json(
+        { error: 'CAPTCHA verification failed. Please try again.' },
+        { status: 400 }
+      );
+    }
 
-    const token = await signToken({
-      userId: result.user.id,
-      email: result.user.email,
+    // Register User & auto-generate Builder Profile
+    const result = dbService.registerUser(name, email, role, password, {
+      department,
+      year,
+      section,
+      college,
+      githubUsername,
+      careerGoal,
+    });
+
+    const authUser = {
+      id: result.user.id,
       name: result.user.name,
+      email: result.user.email,
       role: result.user.role,
-      isDemoUser: false,
-    });
+      avatar: result.user.avatar,
+      department: department || 'CSE',
+      year: year || '1st Year',
+      section: section || 'A',
+      college: college || 'National Institute of Technology',
+      githubUsername: githubUsername || '',
+      careerGoal: careerGoal || 'Software Engineer',
+      emailVerified: result.user.isEmailVerified,
+    };
 
-    const cookieOptions = getAuthCookieOptions();
-    const response = NextResponse.json({
+    // Generate Tokens
+    const accessToken = await generateAccessToken(authUser);
+    const refreshToken = await generateRefreshToken(authUser);
+
+    await setAuthCookies(accessToken, refreshToken);
+
+    return NextResponse.json({
       success: true,
-      message: 'Account registered successfully. Welcome to SkillBridge.',
-      user: {
-        id: result.user.id,
-        email: result.user.email,
-        name: result.user.name,
-        role: result.user.role,
-        avatar: result.user.avatar,
-        isEmailVerified: result.user.isEmailVerified,
-      },
+      message: 'Account created successfully. Builder Profile generated automatically.',
+      user: authUser,
       profile: result.profile,
+      accessToken,
     });
-
-    response.cookies.set(cookieOptions.name, token, cookieOptions);
-    return response;
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Registration failed.' }, { status: 400 });
+    return NextResponse.json(
+      { error: err.message || 'Registration failed.' },
+      { status: 400 }
+    );
   }
 }

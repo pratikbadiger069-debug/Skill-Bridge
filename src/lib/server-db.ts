@@ -223,7 +223,15 @@ export const dbService = {
     name: string,
     email: string,
     role: UserRole,
-    passwordPlain: string
+    passwordPlain: string,
+    studentDetails?: {
+      department?: string;
+      year?: string;
+      section?: string;
+      college?: string;
+      githubUsername?: string;
+      careerGoal?: string;
+    }
   ): { user: DBUser; profile: any } => {
     const db = ensureDbFile();
     const cleanEmail = email.toLowerCase().trim();
@@ -255,6 +263,29 @@ export const dbService = {
     let profile: any = null;
     if (role === 'student') {
       profile = createCleanStudentProfile(newUser.name, cleanEmail);
+      if (studentDetails) {
+        profile.academic.college = studentDetails.college || profile.academic.college;
+        profile.academic.department = studentDetails.department || profile.academic.department;
+        profile.academic.year = studentDetails.year || profile.academic.year;
+        if (studentDetails.section) profile.academic.section = studentDetails.section;
+        if (studentDetails.githubUsername) {
+          profile.professional.githubUrl = `https://github.com/${studentDetails.githubUsername}`;
+        }
+        if (studentDetails.careerGoal) {
+          profile.targetRole = studentDetails.careerGoal;
+          profile.professional.careerGoal = studentDetails.careerGoal;
+        }
+        // Auto initialize Builder Passport Scores
+        profile.builderScores = {
+          overall: 450,
+          execution: 65,
+          leadership: 50,
+          innovation: 60,
+          problemSolving: 70,
+          consistency: 55,
+        };
+        profile.employabilityScore = 68;
+      }
       db.studentProfiles[cleanEmail] = profile;
     }
 
@@ -270,6 +301,7 @@ export const dbService = {
     saveDb(db);
     return { user: newUser, profile };
   },
+
 
   loginUser: (
     email: string,

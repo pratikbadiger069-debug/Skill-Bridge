@@ -6,15 +6,22 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useAppStore } from '@/lib/store';
 import { UserRole } from '@/types';
+import { Captcha } from '@/components/auth/Captcha';
+import { PaperCard } from '@/components/ui/PaperCard';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Badge } from '@/components/ui/Badge';
 import {
-  Compass,
   Mail,
   Lock,
   ArrowRight,
   ShieldCheck,
   AlertCircle,
   Loader2,
-  Check,
+  GraduationCap,
+  Building2,
+  Briefcase,
+  Sparkles,
 } from 'lucide-react';
 
 function GoogleIcon({ className = 'w-4 h-4' }: { className?: string }) {
@@ -58,9 +65,16 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>('student');
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [expectedCaptcha, setExpectedCaptcha] = useState('');
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<'google' | 'github' | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleCaptchaVerify = (userAns: string, expectedAns: string) => {
+    setCaptchaToken(userAns);
+    setExpectedCaptcha(expectedAns);
+  };
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,13 +87,31 @@ export default function LoginPage() {
     setErrorMessage(null);
 
     try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password,
+          role,
+          captchaToken,
+          expectedCaptcha,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Authentication failed');
+      }
+
       await loginUser(email, role, password);
       setLoading(false);
+
       const state = useAppStore.getState();
       if (role === 'student' && !state.studentProfile?.onboardingCompleted) {
         router.push('/onboarding');
       } else {
-        router.push(`/${role}`);
+        router.push(`/${role === 'faculty' ? 'faculty' : role === 'admin' ? 'admin' : 'student'}`);
       }
     } catch (err: any) {
       setLoading(false);
@@ -91,18 +123,20 @@ export default function LoginPage() {
     setOauthLoading('google');
     setErrorMessage(null);
     try {
-      const googleEmail = email.trim() || 'manutej.reddy@hitam.org';
-      await loginWithGoogle(googleEmail, 'Manutej Reddy');
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name: 'Alex Rivera' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      await loginWithGoogle(data.googleData.email, data.googleData.name);
       setOauthLoading(null);
-      const state = useAppStore.getState();
-      if (!state.studentProfile?.onboardingCompleted) {
-        router.push('/onboarding');
-      } else {
-        router.push('/student');
-      }
+      router.push('/student');
     } catch (err: any) {
       setOauthLoading(null);
-      setErrorMessage(err.message || 'Authentication failed. Please try again.');
+      setErrorMessage(err.message || 'Google OAuth failed.');
     }
   };
 
@@ -110,17 +144,20 @@ export default function LoginPage() {
     setOauthLoading('github');
     setErrorMessage(null);
     try {
-      await loginWithGitHub('manutejreddy');
+      const res = await fetch('/api/auth/github', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'alex-dev-builder' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      await loginWithGitHub('alex-dev-builder');
       setOauthLoading(null);
-      const state = useAppStore.getState();
-      if (!state.studentProfile?.onboardingCompleted) {
-        router.push('/onboarding');
-      } else {
-        router.push('/student');
-      }
+      router.push('/student');
     } catch (err: any) {
       setOauthLoading(null);
-      setErrorMessage(err.message || 'Unable to connect GitHub account. Please retry.');
+      setErrorMessage(err.message || 'GitHub OAuth failed.');
     }
   };
 
@@ -131,33 +168,35 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F6F4EE] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans antialiased text-[#1B1B1B]">
+    <div className="min-h-screen bg-[#F6F4EE] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 font-body text-[#1B1B1B]">
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25 }}
+        transition={{ duration: 0.2 }}
         className="sm:mx-auto sm:w-full sm:max-w-md"
       >
         {/* Brand Header */}
-        <Link href="/" className="flex items-center justify-center gap-2.5 mb-6 group">
-          <div className="w-10 h-10 rounded-xl bg-[#1B1B1B] flex items-center justify-center text-[#F6F4EE] font-bold text-base shadow-sm group-hover:scale-105 transition-transform">
-            SB
+        <Link href="/" className="flex items-center justify-center gap-3 mb-6 group">
+          <div className="w-10 h-10 rounded-2xl bg-[#1B1B1B] text-white flex items-center justify-center font-heading font-bold text-base shadow-xs group-hover:bg-[#C76A2A] transition-colors">
+            0×
           </div>
           <div className="flex flex-col text-left">
-            <span className="font-bold text-[#1B1B1B] tracking-tight text-lg leading-tight">
-              SkillBridge
+            <span className="font-heading font-bold text-[#1B1B1B] text-lg leading-tight">
+              ZERO × SkillBridge
             </span>
-            <span className="text-[11px] text-[#6E6E6A] font-medium">Builder Operating System</span>
+            <span className="text-[11px] text-[#6F6A60] font-semibold uppercase tracking-wider">
+              Production OS
+            </span>
           </div>
         </Link>
 
-        <h2 className="text-center text-2xl font-bold tracking-tight text-[#1B1B1B]">
-          Sign in to your account
+        <h2 className="text-center font-heading text-2xl font-bold text-[#1B1B1B] tracking-tight">
+          Sign in to Workspace
         </h2>
-        <p className="mt-1 text-center text-xs text-[#6E6E6A]">
+        <p className="mt-1 text-center text-xs text-[#6F6A60]">
           Or{' '}
           <Link href="/register" className="font-semibold text-[#C76A2A] hover:underline">
-            create a fresh builder account
+            create a fresh student builder account
           </Link>
         </p>
       </motion.div>
@@ -165,14 +204,14 @@ export default function LoginPage() {
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25, delay: 0.05 }}
+        transition={{ duration: 0.2, delay: 0.05 }}
         className="mt-6 sm:mx-auto sm:w-full sm:max-w-md"
       >
-        <div className="bg-white py-8 px-6 sm:px-8 shadow-sm border border-[#E8E5DD] rounded-2xl space-y-5">
+        <PaperCard padding="lg" className="space-y-5">
           {/* Error Banner */}
           {errorMessage && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-xs text-red-700 animate-in fade-in">
-              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+            <div className="p-3 bg-[#C2410C]/10 border border-[#C2410C]/20 rounded-xl flex items-start gap-2.5 text-xs text-[#C2410C]">
+              <AlertCircle className="w-4 h-4 text-[#C2410C] shrink-0 mt-0.5" />
               <span>{errorMessage}</span>
             </div>
           )}
@@ -180,9 +219,10 @@ export default function LoginPage() {
           {/* Social OAuth Buttons */}
           <div className="space-y-2.5">
             <button
+              type="button"
               onClick={handleGoogleLogin}
               disabled={oauthLoading !== null || loading}
-              className="w-full py-2.5 px-4 bg-white border border-[#E8E5DD] hover:border-[#C76A2A] hover:bg-[#FAF9F5] text-[#1B1B1B] rounded-xl text-xs font-semibold flex items-center justify-center gap-2.5 transition-all shadow-none cursor-pointer disabled:opacity-50"
+              className="w-full py-2.5 px-4 bg-white border border-[#E8E5DD] hover:border-[#1B1B1B] text-[#1B1B1B] rounded-xl text-xs font-semibold flex items-center justify-center gap-2.5 transition-all duration-150 cursor-pointer disabled:opacity-50"
             >
               {oauthLoading === 'google' ? (
                 <Loader2 className="w-4 h-4 animate-spin text-[#C76A2A]" />
@@ -193,9 +233,10 @@ export default function LoginPage() {
             </button>
 
             <button
+              type="button"
               onClick={handleGithubLogin}
               disabled={oauthLoading !== null || loading}
-              className="w-full py-2.5 px-4 bg-[#1B1B1B] hover:bg-[#2B2B2B] text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2.5 transition-all shadow-none cursor-pointer disabled:opacity-50"
+              className="w-full py-2.5 px-4 bg-[#1B1B1B] hover:bg-[#2B2B2B] text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2.5 transition-all duration-150 cursor-pointer disabled:opacity-50"
             >
               {oauthLoading === 'github' ? (
                 <Loader2 className="w-4 h-4 animate-spin text-white" />
@@ -209,29 +250,32 @@ export default function LoginPage() {
           {/* Divider */}
           <div className="relative flex items-center justify-center">
             <div className="border-t border-[#E8E5DD] w-full" />
-            <span className="bg-white px-3 text-[11px] text-[#6E6E6A] uppercase font-mono tracking-wider shrink-0">
-              or continue with email
+            <span className="bg-white px-3 text-[10px] text-[#6F6A60] uppercase font-mono tracking-wider shrink-0">
+              or select portal role
             </span>
           </div>
 
-          {/* Role Selector Pill */}
+          {/* User Type Tabs (Student, Faculty, Admin, Recruiter, Institution) */}
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-semibold text-[#6E6E6A] uppercase tracking-wider">
-              Select Workspace Role
-            </label>
-            <div className="grid grid-cols-4 gap-1.5 p-1 bg-[#F6F4EE] rounded-xl border border-[#E8E5DD] text-center">
-              {(['student', 'industry', 'institute', 'admin'] as const).map((r) => (
+            <div className="grid grid-cols-5 gap-1 p-1 bg-[#F6F4EE] rounded-xl border border-[#E8E5DD] text-center">
+              {[
+                { id: 'student', label: 'Student' },
+                { id: 'faculty', label: 'Faculty' },
+                { id: 'admin', label: 'Admin' },
+                { id: 'recruiter', label: 'Recruiter' },
+                { id: 'institution', label: 'Institute' },
+              ].map((t) => (
                 <button
-                  key={r}
+                  key={t.id}
                   type="button"
-                  onClick={() => setRole(r)}
-                  className={`py-1 rounded-lg text-xs font-semibold capitalize transition-all ${
-                    role === r
-                      ? 'bg-[#1B1B1B] text-white shadow-none'
-                      : 'text-[#6E6E6A] hover:text-[#1B1B1B]'
+                  onClick={() => setRole(t.id as UserRole)}
+                  className={`py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-150 ${
+                    role === t.id
+                      ? 'bg-[#1B1B1B] text-white shadow-xs'
+                      : 'text-[#6F6A60] hover:text-[#1B1B1B]'
                   }`}
                 >
-                  {r === 'institute' ? 'College' : r}
+                  {t.label}
                 </button>
               ))}
             </div>
@@ -239,103 +283,91 @@ export default function LoginPage() {
 
           {/* Email Login Form */}
           <form onSubmit={handleEmailLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-[#1B1B1B] mb-1">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-[#6E6E6A] absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@university.edu"
-                  className="w-full pl-9 pr-3.5 py-2 text-xs bg-white border border-[#E8E5DD] rounded-xl focus:outline-none focus:border-[#C76A2A] text-[#1B1B1B] placeholder:text-[#6E6E6A] transition-colors"
-                />
-              </div>
-            </div>
+            <Input
+              label="Email Address"
+              type="email"
+              placeholder="name@university.edu"
+              icon={Mail}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-semibold text-[#1B1B1B]">
+                <label className="text-xs font-semibold text-[#1B1B1B]">
                   Password
                 </label>
                 <Link
                   href="/forgot-password"
-                  className="text-[11px] font-medium text-[#C76A2A] hover:underline"
+                  className="text-[11px] font-semibold text-[#C76A2A] hover:underline"
                 >
                   Forgot Password?
                 </Link>
               </div>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-[#6E6E6A] absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-9 pr-3.5 py-2 text-xs bg-white border border-[#E8E5DD] rounded-xl focus:outline-none focus:border-[#C76A2A] text-[#1B1B1B] placeholder:text-[#6E6E6A] transition-colors"
-                />
-              </div>
+              <Input
+                type="password"
+                placeholder="••••••••"
+                icon={Lock}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
 
-            <button
+            {/* Interactive CAPTCHA Component */}
+            <Captcha onVerify={handleCaptchaVerify} />
+
+            <Button
               type="submit"
+              variant="primary"
+              fullWidth
+              size="md"
               disabled={loading || oauthLoading !== null}
-              className="w-full py-2.5 bg-[#C76A2A] hover:bg-[#B55D22] text-white rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-none disabled:opacity-50"
             >
               {loading ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Verifying Credentials...</span>
-                </>
+                </span>
               ) : (
-                <>
-                  <span>Sign In</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </>
+                <span className="flex items-center gap-2">
+                  <span>Sign In as {role.toUpperCase()}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </span>
               )}
-            </button>
+            </Button>
           </form>
 
-          {/* Quick Demo Pre-fill Seed Credentials */}
-          <div className="p-3.5 bg-[#F6F4EE] rounded-xl border border-[#E8E5DD] space-y-2">
+          {/* Quick Demo Credentials */}
+          <div className="p-3.5 bg-[#F6F4EE] rounded-2xl border border-[#E8E5DD] space-y-2">
             <div className="flex items-center justify-between text-[11px] font-bold text-[#1B1B1B]">
-              <span>Quick-Fill Demo Accounts</span>
-              <span className="text-[10px] text-[#6E6E6A] font-normal">PW: Demo1234!</span>
+              <span>Quick-Fill Seed Credentials</span>
+              <span className="text-[10px] text-[#6F6A60] font-mono">PW: Demo1234!</span>
             </div>
-            <div className="grid grid-cols-2 gap-1.5 pt-1 text-[11px]">
+            <div className="grid grid-cols-3 gap-1.5 pt-1">
               <button
                 type="button"
                 onClick={() => handleQuickFill('demo.student@stanford.edu', 'student', 'Demo1234!')}
-                className="py-1 px-2 text-[10px] font-medium bg-white border border-[#E8E5DD] text-[#1B1B1B] rounded-lg hover:border-[#1B1B1B] text-left truncate"
+                className="py-1 px-2 text-[10px] font-semibold bg-white border border-[#E8E5DD] text-[#1B1B1B] rounded-lg hover:border-[#1B1B1B] text-center truncate cursor-pointer"
               >
                 🎓 Student
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickFill('demo.institute@stanford.edu', 'institute', 'Demo1234!')}
-                className="py-1 px-2 text-[10px] font-medium bg-white border border-[#E8E5DD] text-[#1B1B1B] rounded-lg hover:border-[#1B1B1B] text-left truncate"
+                onClick={() => handleQuickFill('demo.institute@stanford.edu', 'faculty', 'Demo1234!')}
+                className="py-1 px-2 text-[10px] font-semibold bg-white border border-[#E8E5DD] text-[#1B1B1B] rounded-lg hover:border-[#1B1B1B] text-center truncate cursor-pointer"
               >
-                🏛️ Institute
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('demo.industry@anthropic.com', 'industry', 'Demo1234!')}
-                className="py-1 px-2 text-[10px] font-medium bg-white border border-[#E8E5DD] text-[#1B1B1B] rounded-lg hover:border-[#1B1B1B] text-left truncate"
-              >
-                💼 Recruiter
+                🏛️ Faculty
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickFill('admin@skillbridge.io', 'admin', 'Admin2026!')}
-                className="py-1 px-2 text-[10px] font-medium bg-white border border-[#E8E5DD] text-[#1B1B1B] rounded-lg hover:border-[#1B1B1B] text-left truncate"
+                className="py-1 px-2 text-[10px] font-semibold bg-white border border-[#E8E5DD] text-[#1B1B1B] rounded-lg hover:border-[#1B1B1B] text-center truncate cursor-pointer"
               >
                 🛡️ Admin
               </button>
             </div>
           </div>
-        </div>
+        </PaperCard>
       </motion.div>
     </div>
   );

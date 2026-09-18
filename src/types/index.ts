@@ -1,4 +1,4 @@
-export type UserRole = 'student' | 'institute' | 'industry' | 'admin';
+export type UserRole = 'student' | 'faculty' | 'admin' | 'recruiter' | 'institution' | 'institute' | 'industry';
 
 export interface AuthUser {
   id: string;
@@ -6,10 +6,27 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   avatar?: string;
+  department?: string;
+  year?: string;
+  section?: string;
+  college?: string;
   institution?: string;
   company?: string;
+  githubUsername?: string;
+  careerGoal?: string;
   emailVerified?: boolean;
+  isDemoUser?: boolean;
+  lockoutUntil?: string;
 }
+
+export interface SecurityState {
+  captchaToken?: string;
+  captchaVerified?: boolean;
+  rateLimitRemaining?: number;
+  lockoutActive?: boolean;
+  lockoutTimeRemainingMs?: number;
+}
+
 
 export type AIProvider = 'gemini' | 'openai' | 'claude' | 'groq' | 'openrouter' | 'deepseek';
 

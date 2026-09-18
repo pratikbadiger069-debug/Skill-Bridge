@@ -4,7 +4,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { motion, useInView } from 'framer-motion';
 
 interface AnimatedCounterProps {
-  target: number;
+  target?: number;
+  count?: number;
   suffix?: string;
   prefix?: string;
   duration?: number;
@@ -13,14 +14,16 @@ interface AnimatedCounterProps {
 
 export default function AnimatedCounter({
   target,
+  count: propCount,
   suffix = '',
   prefix = '',
   duration = 1.8,
   className = '',
 }: AnimatedCounterProps) {
+  const finalTarget = target ?? propCount ?? 0;
   const ref = useRef<HTMLSpanElement>(null);
   const isInView = useInView(ref, { once: true, margin: '-60px' });
-  const [count, setCount] = useState(0);
+  const [displayCount, setDisplayCount] = useState(0);
 
   useEffect(() => {
     if (!isInView) return;
@@ -33,18 +36,18 @@ export default function AnimatedCounter({
       const progress = Math.min((timestamp - startTime) / (duration * 1000), 1);
       // Ease-out cubic
       const eased = 1 - Math.pow(1 - progress, 3);
-      setCount(Math.floor(eased * target));
+      setDisplayCount(Math.floor(eased * finalTarget));
 
       if (progress < 1) {
         animationFrame = requestAnimationFrame(step);
       } else {
-        setCount(target);
+        setDisplayCount(finalTarget);
       }
     };
 
     animationFrame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(animationFrame);
-  }, [isInView, target, duration]);
+  }, [isInView, finalTarget, duration]);
 
   return (
     <motion.span
@@ -54,7 +57,7 @@ export default function AnimatedCounter({
       animate={isInView ? { opacity: 1, scale: 1 } : {}}
       transition={{ duration: 0.3, ease: 'easeOut' }}
     >
-      {prefix}{count.toLocaleString()}{suffix}
+      {prefix}{displayCount.toLocaleString()}{suffix}
     </motion.span>
   );
 }

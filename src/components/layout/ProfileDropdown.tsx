@@ -6,25 +6,18 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/lib/store';
 import { getUserDisplayName } from '@/lib/user-utils';
-import { getLevelInfo, calculateTransparentBuilderScore } from '@/lib/xp-engine';
+import { getLevelInfo } from '@/lib/xp-engine';
 import {
   User,
-  MapPin,
-  CheckCircle2,
-  Trophy,
   Award,
   Settings,
+  Bell,
+  Trophy,
   LogOut,
   ChevronDown,
-  ShieldCheck,
-  Flame,
-  LayoutDashboard,
-  Compass,
-  FileCheck,
-  BookOpen,
-  ExternalLink,
-  Target,
+  Sparkles,
 } from 'lucide-react';
+import { UserAvatar } from '@/components/avatar/UserAvatar';
 
 function GithubIcon({ className = 'w-4 h-4' }: { className?: string }) {
   return (
@@ -38,42 +31,17 @@ function GithubIcon({ className = 'w-4 h-4' }: { className?: string }) {
   );
 }
 
-import { UserAvatar } from '@/components/avatar/UserAvatar';
-
 export function ProfileDropdown() {
   const router = useRouter();
-  const {
-    currentUser,
-    studentProfile,
-    xp,
-    streakDays,
-    githubData,
-    logoutUser,
-  } = useAppStore();
+  const { currentUser, studentProfile, xp, logoutUser } = useAppStore();
 
   const [isOpen, setIsOpen] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const displayName = getUserDisplayName({ user: currentUser, profile: studentProfile });
   const levelInfo = getLevelInfo(xp);
 
-  const builderScoreData = calculateTransparentBuilderScore({
-    verifiedSkillsCount: (studentProfile?.verifiedSkills || []).length,
-    projectsCount: (studentProfile?.evidences || []).length,
-    githubConnected: githubData?.connected,
-    githubReposCount: (githubData?.pinnedRepos || []).length,
-    consistencyStreakDays: streakDays,
-    completedChallengesCount: 5,
-  });
-
-  const readinessScore = studentProfile?.careerReadinessScore || 78;
-  const githubProfileUrl =
-    studentProfile?.professional?.githubUrl ||
-    (githubData?.username ? `https://github.com/${githubData.username}` : 'https://github.com');
-
-  // Close dropdown on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -98,16 +66,11 @@ export function ProfileDropdown() {
   };
 
   return (
-    <div
-      className="relative"
-      ref={menuRef}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      {/* Trigger Button: [Avatar] Name ▼ */}
+    <div className="relative" ref={menuRef}>
+      {/* Avatar Click Trigger */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2.5 p-1 pl-1.5 pr-2.5 rounded-xl hover:bg-black/5 transition-all text-[#1B1B1B] cursor-pointer"
+        className="flex items-center gap-2.5 p-1 pl-1.5 pr-2.5 rounded-xl hover:bg-[#F6F4EE] border border-transparent hover:border-[#E8E5DD] transition-all duration-150 text-[#1B1B1B] cursor-pointer"
         aria-expanded={isOpen}
       >
         <UserAvatar
@@ -117,95 +80,17 @@ export function ProfileDropdown() {
         />
         <div className="hidden sm:flex flex-col text-left">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold leading-none text-[#1B1B1B]">{displayName}</span>
-            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-[#C76A2A]/10 text-[#C76A2A] font-bold uppercase">
-              {levelInfo.title}
+            <span className="text-xs font-bold leading-none text-[#1B1B1B]">{displayName}</span>
+            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#C76A2A]/10 text-[#C76A2A] font-bold">
+              Lvl {levelInfo.level}
             </span>
           </div>
-          <span className="text-[10px] text-[#6F6A60] leading-tight font-mono">{xp} XP • Lvl {levelInfo.level}</span>
+          <span className="text-[10px] text-[#6F6A60] font-mono leading-tight">{xp} XP</span>
         </div>
         <ChevronDown className={`w-3.5 h-3.5 text-[#6F6A60] transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* Hover Preview Card (appears when hovered and menu is not open) */}
-      <AnimatePresence>
-        {isHovered && !isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 4, scale: 0.98 }}
-            transition={{ duration: 0.15 }}
-            className="hidden sm:block absolute right-0 mt-2 w-80 rounded-2xl bg-white border border-[#E8E5DD] shadow-2xl z-40 p-4 space-y-3.5"
-          >
-            {/* Quick Profile Header */}
-            <div className="flex items-center gap-3">
-              <UserAvatar
-                src={studentProfile?.avatar || currentUser?.avatar}
-                name={displayName}
-                size="md"
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-[#1B1B1B] truncate">{displayName}</h4>
-                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#C76A2A]/10 text-[#C76A2A] font-bold">
-                    Lvl {levelInfo.level}
-                  </span>
-                </div>
-                <p className="text-[10px] text-[#6F6A60] truncate">{studentProfile?.headline || studentProfile?.academic?.college || 'HITAM'}</p>
-              </div>
-            </div>
-
-            {/* Metrics Row: Builder Level, Score, Career Readiness, XP */}
-            <div className="grid grid-cols-4 gap-1.5 p-2.5 bg-[#FAF9F5] rounded-xl border border-[#E8E5DD] text-center text-xs">
-              <div>
-                <span className="text-[8px] font-mono text-[#6F6A60] block uppercase">Level</span>
-                <strong className="text-[#C76A2A] font-mono text-[11px]">{levelInfo.level}</strong>
-              </div>
-              <div>
-                <span className="text-[8px] font-mono text-[#6F6A60] block uppercase">Score</span>
-                <strong className="text-[#1B1B1B] font-mono text-[11px]">{builderScoreData.totalScore}</strong>
-              </div>
-              <div>
-                <span className="text-[8px] font-mono text-[#6F6A60] block uppercase">Readiness</span>
-                <strong className="text-[#2F7A45] font-mono text-[11px]">{readinessScore}%</strong>
-              </div>
-              <div>
-                <span className="text-[8px] font-mono text-[#6F6A60] block uppercase">XP</span>
-                <strong className="text-[#1B1B1B] font-mono text-[11px]">{xp}</strong>
-              </div>
-            </div>
-
-            {/* Quick Action Buttons: View Journey, GitHub, LinkedIn */}
-            <div className="grid grid-cols-3 gap-1.5 pt-1">
-              <Link
-                href="/journey"
-                className="flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-[#1B1B1B] text-white text-[10px] font-semibold hover:bg-[#C76A2A] transition-colors"
-              >
-                <span>View Journey</span>
-              </Link>
-              <a
-                href={githubProfileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-[#F6F4EE] border border-[#E8E5DD] text-[#1B1B1B] text-[10px] font-semibold hover:border-[#1B1B1B] transition-colors"
-              >
-                <GithubIcon className="w-3 h-3" />
-                <span>GitHub</span>
-              </a>
-              <a
-                href={studentProfile?.professional?.linkedinUrl || 'https://linkedin.com'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-[#0077B5]/10 border border-[#0077B5]/30 text-[#0077B5] text-[10px] font-semibold hover:bg-[#0077B5]/20 transition-colors"
-              >
-                <span>LinkedIn</span>
-              </a>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Main Dropdown Menu */}
+      {/* Main Profile Menu */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -213,23 +98,22 @@ export function ProfileDropdown() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 4, scale: 0.98 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 mt-2 w-72 rounded-2xl bg-white border border-[#E8E5DD] shadow-2xl z-50 p-2.5 space-y-1.5"
+            className="absolute right-0 mt-2 w-72 rounded-2xl bg-white border border-[#E8E5DD] shadow-[0_4px_20px_rgba(27,27,27,0.08)] z-50 p-2.5 space-y-2 select-none"
           >
-            {/* User Identity Header */}
-            <div className="p-3 bg-[#FAF9F5] rounded-xl space-y-2 border border-[#E8E5DD]">
+            {/* Identity Header */}
+            <div className="p-3 bg-[#F6F4EE] rounded-xl border border-[#E8E5DD] space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-[#1B1B1B] truncate">{displayName}</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[#C76A2A]/10 text-[#C76A2A] font-bold">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#C76A2A]/10 text-[#C76A2A] font-bold">
                   {levelInfo.title}
                 </span>
               </div>
-              <p className="text-[11px] text-[#6F6A60] truncate">{studentProfile.email || currentUser?.email || 'builder@skillbridge.edu'}</p>
-              
-              {/* Level & XP Mini Meter */}
+              <p className="text-[11px] text-[#6F6A60] truncate">{studentProfile?.email || currentUser?.email || 'builder@skillbridge.edu'}</p>
+
               <div className="pt-1.5 space-y-1 border-t border-[#E8E5DD]">
                 <div className="flex justify-between text-[10px] font-medium">
                   <span className="text-[#1B1B1B]">Level {levelInfo.level}</span>
-                  <span className="font-mono text-[#C76A2A] font-semibold">{xp} XP ({levelInfo.xpRemaining} XP to Lvl {levelInfo.level + 1})</span>
+                  <span className="font-mono text-[#C76A2A] font-bold">{xp} XP</span>
                 </div>
                 <div className="w-full h-1.5 bg-white rounded-full overflow-hidden border border-[#E8E5DD]">
                   <div
@@ -240,108 +124,86 @@ export function ProfileDropdown() {
               </div>
             </div>
 
-            {/* Menu Options */}
-            <div className="py-1 space-y-0.5 text-xs font-medium text-[#1B1B1B]">
+            {/* Menu Items strictly as requested */}
+            <div className="py-1 space-y-0.5 text-xs font-semibold text-[#1B1B1B]">
               <Link
-                href="/student"
+                href="/student/profile"
                 onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[#FAF9F5] transition-colors"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[#F6F4EE] transition-colors"
               >
-                <LayoutDashboard className="w-4 h-4 text-[#6F6A60]" />
-                <span>Dashboard</span>
+                <User className="w-4 h-4 text-[#6F6A60]" />
+                <span>Profile</span>
               </Link>
 
               <Link
-                href="/journey"
+                href="/passport"
                 onClick={() => setIsOpen(false)}
-                className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-[#FAF9F5] transition-colors"
+                className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-[#F6F4EE] transition-colors"
               >
                 <div className="flex items-center gap-2.5">
-                  <Compass className="w-4 h-4 text-[#6F6A60]" />
-                  <span>My Journey</span>
+                  <Award className="w-4 h-4 text-[#6F6A60]" />
+                  <span>Builder Passport</span>
                 </div>
-                <span className="text-[10px] text-[#C76A2A] font-mono">/journey</span>
-              </Link>
-
-              <Link
-                href="/student/verified-passport"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[#FAF9F5] transition-colors"
-              >
-                <ShieldCheck className="w-4 h-4 text-[#6F6A60]" />
-                <span>Builder Passport</span>
-              </Link>
-
-              <Link
-                href="/student/assessments"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-[#FAF9F5] transition-colors"
-              >
-                <div className="flex items-center gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-[#6F6A60]" />
-                  <span>Assessments</span>
-                </div>
-                <span className="text-[10px] text-[#2F7A45] font-semibold bg-[#2F7A45]/10 px-1.5 py-0.2 rounded">
-                  10-Q Engine
-                </span>
-              </Link>
-
-              <Link
-                href="/student/roadmap"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[#FAF9F5] transition-colors"
-              >
-                <BookOpen className="w-4 h-4 text-[#6F6A60]" />
-                <span>Roadmap</span>
-              </Link>
-
-              <Link
-                href="/student/opportunities"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-[#FAF9F5] transition-colors"
-              >
-                <div className="flex items-center gap-2.5">
-                  <Target className="w-4 h-4 text-[#6F6A60]" />
-                  <span>Opportunities</span>
-                </div>
-                <span className="text-[10px] text-[#C76A2A] font-semibold bg-[#C76A2A]/10 px-1.5 py-0.2 rounded">
-                  Matched
-                </span>
+                <span className="text-[10px] font-mono text-[#C76A2A]">SHA-256</span>
               </Link>
 
               <Link
                 href="/github-analytics"
                 onClick={() => setIsOpen(false)}
-                className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-[#FAF9F5] transition-colors"
+                className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-[#F6F4EE] transition-colors"
               >
                 <div className="flex items-center gap-2.5">
                   <GithubIcon className="w-4 h-4 text-[#1B1B1B]" />
-                  <span>GitHub Analytics</span>
+                  <span>GitHub Connection</span>
                 </div>
                 <span className="text-[10px] text-[#2F7A45] font-semibold bg-[#2F7A45]/10 px-1.5 py-0.2 rounded">
-                  Live
+                  Connected
                 </span>
               </Link>
 
               <Link
-                href="/student/settings"
+                href="/settings"
                 onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[#FAF9F5] transition-colors"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[#F6F4EE] transition-colors"
               >
                 <Settings className="w-4 h-4 text-[#6F6A60]" />
                 <span>Settings</span>
               </Link>
+
+              <Link
+                href="/student/notifications"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-[#F6F4EE] transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Bell className="w-4 h-4 text-[#6F6A60]" />
+                  <span>Notifications</span>
+                </div>
+                <span className="w-2 h-2 rounded-full bg-[#C76A2A]" />
+              </Link>
+
+              <Link
+                href="/student/leaderboard"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-[#F6F4EE] transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Trophy className="w-4 h-4 text-[#6F6A60]" />
+                  <span>Achievements</span>
+                </div>
+                <span className="text-[10px] text-[#6F6A60] font-mono">Rank #12</span>
+              </Link>
             </div>
 
-            {/* Logout Action */}
+            {/* Logout */}
             <div className="pt-1.5 border-t border-[#E8E5DD]">
               <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-[#C2410C] hover:bg-[#C2410C]/10 transition-colors cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
-                <span>{isLoggingOut ? 'Signing out...' : 'Sign Out'}</span>
+                <span>{isLoggingOut ? 'Signing out...' : 'Logout'}</span>
               </button>
             </div>
           </motion.div>

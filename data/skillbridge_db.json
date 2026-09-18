@@ -174,6 +174,19 @@
       "emailVerificationToken": "vt_1789187738979_p8msop4",
       "createdAt": "2026-09-12T04:35:38.979Z",
       "updatedAt": "2026-09-12T04:37:30.202Z"
+    },
+    "oratik@gmail.com": {
+      "id": "usr_1789725572099_qkauvq2",
+      "email": "oratik@gmail.com",
+      "name": "Pratik",
+      "role": "student",
+      "passwordHash": "$2b$12$q1pIBAz0NKlhQEo6m3tkT.5JVeMSSTk2ohJ6sRKjUXbnyEK21v/3y",
+      "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+      "isDemoUser": false,
+      "isEmailVerified": false,
+      "emailVerificationToken": "vt_1789725572098_ts61a14",
+      "createdAt": "2026-09-18T09:59:32.099Z",
+      "updatedAt": "2026-09-18T10:00:49.362Z"
     }
   },
   "studentProfiles": {
@@ -1403,6 +1416,123 @@
       ],
       "projectCount": "1–2",
       "hackathonExperience": "Yes"
+    },
+    "oratik@gmail.com": {
+      "id": "std-1789725572099-cvadf",
+      "name": "Pratik",
+      "email": "oratik@gmail.com",
+      "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+      "headline": "Software Development Candidate | HITAM '26",
+      "targetRole": "Software Development",
+      "academic": {
+        "college": "HITAM",
+        "department": "CSE",
+        "year": "1st Year",
+        "semester": "1st Semester",
+        "cgpa": 8.5,
+        "studentId": "STU-2026-6449",
+        "degree": "B.Tech",
+        "branch": "CSE",
+        "graduationYear": "2026",
+        "country": "India",
+        "state": "Telangana",
+        "city": "Hyderabad"
+      },
+      "professional": {
+        "githubUrl": "https://github.com/pratik",
+        "linkedinUrl": "https://www.linkedin.com/in/pratik-badiger-5592743a9/",
+        "portfolioUrl": "",
+        "bio": "Intermediate builder focused on Software Development with a target goal of Internship.",
+        "totalProjects": 2,
+        "hackathonWins": 0,
+        "researchPapers": 0,
+        "openSourceContributions": 12,
+        "resumeUrl": "",
+        "careerPath": "Software Development",
+        "skillLevel": "Intermediate",
+        "careerGoal": "Internship",
+        "knownSkills": [
+          "Python",
+          "JavaScript",
+          "React"
+        ],
+        "projectCountRange": "1–2",
+        "hasHackathonExperience": false
+      },
+      "builderScores": {
+        "overall": 500,
+        "execution": 50,
+        "leadership": 70,
+        "innovation": 72,
+        "problemSolving": 78,
+        "consistency": 75
+      },
+      "employabilityScore": 62,
+      "verifiedSkills": [
+        {
+          "id": "vs-onboard-1789725649339-0",
+          "name": "Python",
+          "category": "AI & ML",
+          "level": "Intermediate",
+          "score": 80,
+          "verificationSources": [
+            "Assessment",
+            "Project"
+          ],
+          "verifiedDate": "Sep 18, 2026",
+          "verificationCode": "SB-PYT-42293",
+          "evidenceCount": 1
+        },
+        {
+          "id": "vs-onboard-1789725649360-1",
+          "name": "JavaScript",
+          "category": "Programming",
+          "level": "Intermediate",
+          "score": 82,
+          "verificationSources": [
+            "Assessment",
+            "Project"
+          ],
+          "verifiedDate": "Sep 18, 2026",
+          "verificationCode": "SB-JAV-57174",
+          "evidenceCount": 1
+        },
+        {
+          "id": "vs-onboard-1789725649361-2",
+          "name": "React",
+          "category": "Programming",
+          "level": "Intermediate",
+          "score": 84,
+          "verificationSources": [
+            "Assessment",
+            "Project"
+          ],
+          "verifiedDate": "Sep 18, 2026",
+          "verificationCode": "SB-REA-32294",
+          "evidenceCount": 1
+        }
+      ],
+      "evidences": [],
+      "city": "Hyderabad",
+      "state": "Telangana",
+      "country": "India",
+      "careerReadinessScore": 62,
+      "onboardingCompleted": true,
+      "college": "HITAM",
+      "department": "CSE",
+      "branch": "CSE",
+      "degree": "B.Tech",
+      "graduationYear": "2026",
+      "careerPath": "Software Development",
+      "skillLevel": "Intermediate",
+      "careerGoal": "Internship",
+      "knownSkills": [
+        "Python",
+        "JavaScript",
+        "React"
+      ],
+      "projectCount": "1–2",
+      "hackathonExperience": "No"
     }
   },
   "instituteData": {
@@ -1651,6 +1781,22 @@
     ]
   },
   "auditLogs": [
+    {
+      "id": "log-1789725572099",
+      "timestamp": "2026-09-18T09:59:32.099Z",
+      "action": "USER_REGISTERED_BCRYPT",
+      "userId": "usr_1789725572099_qkauvq2",
+      "role": "STUDENT",
+      "details": "Registered new verified student identity: oratik@gmail.com"
+    },
+    {
+      "id": "log-1789725537308",
+      "timestamp": "2026-09-18T09:58:57.309Z",
+      "action": "USER_LOGIN_SUCCESS",
+      "userId": "usr-1789123646558",
+      "role": "STUDENT",
+      "details": "Successful authenticated login for: pratik.badiger@gmail.com"
+    },
     {
       "id": "log-1789191186090",
       "timestamp": "2026-09-12T05:33:06.090Z",
