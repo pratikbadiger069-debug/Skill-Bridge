@@ -1,8 +1,5 @@
 'use client';
 
-import React from 'react';
-import MyJourneyPage from '../journey/page';
+import BuilderPassportPage from '@/app/passport/page';
 
-export default function BuilderPassportPage() {
-  return <MyJourneyPage />;
-}
+export default BuilderPassportPage;
