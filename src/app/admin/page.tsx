@@ -1,229 +1,283 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
+import React, { useState, useEffect } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { useAppStore } from '@/lib/store';
-import { mockSkillDemandMetrics } from '@/lib/mock-data';
-import { getUserDisplayName } from '@/lib/user-utils';
 import {
-  ShieldCheck,
+  LayoutDashboard,
   Users,
-  Building2,
-  Briefcase,
-  TrendingUp,
   Award,
-  Zap,
-  ArrowUpRight,
+  Users2,
+  FolderGit2,
+  Briefcase,
+  BarChart3,
+  ShieldCheck,
+  Settings,
+  FileText,
 } from 'lucide-react';
+
+import { AdminHeader } from './components/AdminHeader';
+import { AdminOverviewView } from './components/AdminOverviewView';
+import { UserManagementView } from './components/UserManagementView';
+import { AssessmentManagementView } from './components/AssessmentManagementView';
+import { CommunityManagementView } from './components/CommunityManagementView';
+import { ProjectManagementView } from './components/ProjectManagementView';
+import { OpportunityManagementView } from './components/OpportunityManagementView';
+import { AnalyticsView } from './components/AnalyticsView';
+import { SecurityDashboardView } from './components/SecurityDashboardView';
+import { SystemSettingsView } from './components/SystemSettingsView';
+import { AdminReportsView } from './components/AdminReportsView';
+
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
+  MOCK_ADMIN_USERS,
+  MOCK_QUESTION_BANK,
+  MOCK_ADMIN_ASSESSMENTS,
+  MOCK_COMMUNITY_MODERATION,
+  MOCK_ADMIN_PROJECTS,
+  MOCK_ADMIN_OPPORTUNITIES,
+  MOCK_SECURITY_LOGS,
+  MOCK_FEATURE_FLAGS,
+} from './mock-admin';
+
+import {
+  AdminUser,
+  UserRole,
+  UserAccountStatus,
+  QuestionBankItem,
+  AdminAssessmentConfig,
+  CommunityModerationItem,
+  AdminProjectReview,
+  AdminOpportunityItem,
+  SystemFeatureFlag,
+} from './types';
 
 export default function AdminDashboardPage() {
-  const { setRole, currentUser, isDemoMode } = useAppStore();
-  const [mounted, setMounted] = useState(false);
+  const { setRole } = useAppStore();
+  const [activeTab, setActiveTab] = useState<
+    | 'overview'
+    | 'users'
+    | 'assessments'
+    | 'community'
+    | 'project-management'
+    | 'opportunities'
+    | 'analytics'
+    | 'security'
+    | 'settings'
+    | 'reports'
+  >('overview');
+
+  const [usersList, setUsersList] = useState<AdminUser[]>(MOCK_ADMIN_USERS);
+  const [questionsList, setQuestionsList] = useState<QuestionBankItem[]>(MOCK_QUESTION_BANK);
+  const [assessmentsList, setAssessmentsList] = useState<AdminAssessmentConfig[]>(MOCK_ADMIN_ASSESSMENTS);
+  const [moderationList, setModerationList] = useState<CommunityModerationItem[]>(MOCK_COMMUNITY_MODERATION);
+  const [projectsList, setProjectsList] = useState<AdminProjectReview[]>(MOCK_ADMIN_PROJECTS);
+  const [opportunitiesList, setOpportunitiesList] = useState<AdminOpportunityItem[]>(MOCK_ADMIN_OPPORTUNITIES);
+  const [flagsList, setFlagsList] = useState<SystemFeatureFlag[]>(MOCK_FEATURE_FLAGS);
 
   useEffect(() => {
     setRole('admin');
-    setMounted(true);
   }, [setRole]);
 
-  if (!mounted) return null;
+  // User Handlers
+  const handleAddUser = (newUser: Omit<AdminUser, 'id' | 'joinedDate' | 'lastLogin'>) => {
+    const created: AdminUser = {
+      ...newUser,
+      id: `usr-${Date.now()}`,
+      joinedDate: new Date().toISOString().split('T')[0],
+      lastLogin: 'Just now',
+    };
+    setUsersList((prev) => [created, ...prev]);
+  };
 
-  const trendData = [
-    { month: 'Oct', students: 8200, placements: 1420 },
-    { month: 'Nov', students: 9500, placements: 1850 },
-    { month: 'Dec', students: 11200, placements: 2200 },
-    { month: 'Jan', students: 12800, placements: 2750 },
-    { month: 'Feb', students: 14400, placements: 3410 },
-  ];
+  const handleUpdateUserRole = (id: string, newRole: UserRole) => {
+    setUsersList((prev) => prev.map((u) => (u.id === id ? { ...u, role: newRole } : u)));
+  };
+
+  const handleToggleUserStatus = (id: string, newStatus: UserAccountStatus) => {
+    setUsersList((prev) => prev.map((u) => (u.id === id ? { ...u, status: newStatus } : u)));
+  };
+
+  const handleDeleteUser = (id: string) => {
+    setUsersList((prev) => prev.filter((u) => u.id !== id));
+  };
+
+  // Question & Assessment Handlers
+  const handleAddQuestion = (q: Omit<QuestionBankItem, 'id'>) => {
+    const created: QuestionBankItem = { ...q, id: `qb-${Date.now()}` };
+    setQuestionsList((prev) => [created, ...prev]);
+  };
+
+  const handleAddAssessment = (a: Omit<AdminAssessmentConfig, 'id'>) => {
+    const created: AdminAssessmentConfig = { ...a, id: `asm-${Date.now()}` };
+    setAssessmentsList((prev) => [created, ...prev]);
+  };
+
+  // Community Handlers
+  const handleApproveCommunityItem = (id: string) => {
+    setModerationList((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, status: 'Approved', flagReason: undefined } : m))
+    );
+  };
+
+  const handleArchiveCommunityItem = (id: string) => {
+    setModerationList((prev) => prev.filter((m) => m.id !== id));
+  };
+
+  // Project Handlers
+  const handleToggleProjectFeatured = (id: string) => {
+    setProjectsList((prev) => prev.map((p) => (p.id === id ? { ...p, isFeatured: !p.isFeatured } : p)));
+  };
+
+  const handleVerifyProject = (id: string, verified: boolean) => {
+    setProjectsList((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, status: verified ? 'Verified' : 'Rejected' } : p))
+    );
+  };
+
+  // Opportunity Handlers
+  const handleAddOpportunity = (opp: Omit<AdminOpportunityItem, 'id' | 'applicantsCount' | 'createdAt'>) => {
+    const created: AdminOpportunityItem = {
+      ...opp,
+      id: `opp-${Date.now()}`,
+      applicantsCount: 0,
+      createdAt: 'Just now',
+    };
+    setOpportunitiesList((prev) => [created, ...prev]);
+  };
+
+  const handleArchiveOpportunity = (id: string) => {
+    setOpportunitiesList((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, status: 'Archived' } : o))
+    );
+  };
+
+  // Feature Flag Handler
+  const handleToggleFlag = (id: string) => {
+    setFlagsList((prev) => prev.map((f) => (f.id === id ? { ...f, enabled: !f.enabled } : f)));
+  };
+
+  const handleQuickAction = (action: string) => {
+    if (action === 'create-user') {
+      setActiveTab('users');
+    } else if (action === 'security') {
+      setActiveTab('security');
+    } else if (action === 'export-report') {
+      setActiveTab('reports');
+    }
+  };
 
   return (
     <PortalLayout>
-      <div className="space-y-6">
-        {/* Welcome Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl border border-slate-200 shadow-2xs">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
-                Global Network Administration
-              </span>
-              <span className="text-xs text-slate-400">•</span>
-              <span className="text-xs text-slate-500 font-medium">
-                {isDemoMode ? 'Master Governance Console' : getUserDisplayName({ user: currentUser })}
-              </span>
-            </div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-              SkillBridge AI Global Intelligence
-            </h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Platform-wide workforce metrics, macro skill demand telemetry, and institutional ecosystem operations.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/admin/demand"
-              className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-xs flex items-center gap-1.5"
-            >
-              <TrendingUp className="w-3.5 h-3.5" />
-              Skill Demand Intelligence
-            </Link>
-            <Link
-              href="/admin/users"
-              className="px-3.5 py-2 text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
-            >
-              Manage Users
-            </Link>
-          </div>
-        </div>
+      <div className="space-y-6 max-w-[1280px] mx-auto pb-20">
+        {/* Header */}
+        <AdminHeader onQuickAction={handleQuickAction} activeTab={activeTab} />
 
-        {/* 4 Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="saas-card p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-500">Total Verified Students</span>
-              <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                <Users className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-slate-900">14,400</span>
-              <span className="text-xs text-emerald-600 font-semibold">+28% MoM</span>
-            </div>
-            <span className="text-[11px] text-slate-500 mt-2 block">
-              Across 48 Partner Universities
-            </span>
-          </div>
-
-          <div className="saas-card p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-500">Partner Institutes</span>
-              <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
-                <Building2 className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-slate-900">48</span>
-              <span className="text-xs text-purple-600 font-semibold">Active Deans</span>
-            </div>
-            <span className="text-[11px] text-slate-500 mt-2 block">
-              Accreditation compliant
-            </span>
-          </div>
-
-          <div className="saas-card p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-500">Hiring Companies</span>
-              <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
-                <Briefcase className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-slate-900">320</span>
-              <span className="text-xs text-amber-600 font-semibold">Tier-1 SaaS</span>
-            </div>
-            <span className="text-[11px] text-slate-500 mt-2 block">
-              Direct vector search active
-            </span>
-          </div>
-
-          <div className="saas-card p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-500">Total Placements</span>
-              <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
-                <Award className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-slate-900">3,410</span>
-              <span className="text-xs text-emerald-600 font-semibold">89.4% Rate</span>
-            </div>
-            <span className="text-[11px] text-slate-500 mt-2 block">
-              $104,200 avg graduate offer
-            </span>
-          </div>
-        </div>
-
-        {/* Global Network Growth Chart */}
-        <div className="saas-card p-6">
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">Network Growth & Placement Velocity</h2>
-              <p className="text-xs text-slate-500">Platform candidate expansion vs successful enterprise offers</p>
-            </div>
-            <span className="text-xs font-semibold text-emerald-600">
-              Live Macro Stream
-            </span>
-          </div>
-
-          <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorStudents" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="month" tick={{ fill: '#64748b', fontSize: 11 }} />
-                <YAxis tick={{ fill: '#64748b', fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#ffffff',
-                    borderColor: '#e2e8f0',
-                    borderRadius: '0.5rem',
-                    fontSize: '12px',
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="students"
-                  stroke="#2563eb"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorStudents)"
-                  name="Verified Students"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Top Demanded Technologies Highlight */}
-        <div className="saas-card p-6">
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-            <h2 className="text-sm font-bold text-slate-900">Fastest Growing Industry Technologies</h2>
-            <Link href="/admin/demand" className="text-xs text-blue-600 hover:underline font-medium">
-              View Full Demand Analytics &rarr;
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {mockSkillDemandMetrics.slice(0, 3).map((item) => (
-              <div key={item.skill} className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase text-slate-400">{item.category}</span>
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                    +{item.growthRate}% YoY
+        {/* Primary Command Navigation Bar (10 Main Sections) */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-[#E8E5DD] text-xs font-bold no-scrollbar">
+          {[
+            { id: 'overview', label: 'Admin Overview', icon: LayoutDashboard },
+            { id: 'users', label: 'User Management', icon: Users },
+            { id: 'assessments', label: 'Assessment Control', icon: Award },
+            { id: 'community', label: 'Community Governance', icon: Users2 },
+            { id: 'project-management', label: 'Project Verification', icon: FolderGit2 },
+            { id: 'opportunities', label: 'Opportunity Hub', icon: Briefcase },
+            { id: 'analytics', label: 'Platform Analytics', icon: BarChart3 },
+            { id: 'security', label: 'Security Dashboard', icon: ShieldCheck, badge: 'Zero Trust' },
+            { id: 'settings', label: 'System Settings', icon: Settings },
+            { id: 'reports', label: 'Platform Reports', icon: FileText },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`px-3.5 py-2.5 rounded-2xl flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                  isActive
+                    ? 'bg-[#1B1B1B] text-white shadow-xs'
+                    : 'bg-white border border-[#E8E5DD] text-[#6F6A60] hover:text-[#1B1B1B] hover:border-[#1B1B1B]'
+                }`}
+              >
+                <Icon className={`w-4 h-4 ${isActive ? 'text-[#C76A2A]' : 'text-[#6F6A60]'}`} />
+                <span>{tab.label}</span>
+                {tab.badge && (
+                  <span
+                    className={`text-[9px] px-2 py-0.5 rounded-full font-mono ${
+                      isActive ? 'bg-[#C76A2A] text-white' : 'bg-[#C76A2A]/10 text-[#C76A2A]'
+                    }`}
+                  >
+                    {tab.badge}
                   </span>
-                </div>
-                <h3 className="text-xs font-bold text-slate-900">{item.skill}</h3>
-                <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-200/60">
-                  <span>{item.openRolesCount} Open Requisitions</span>
-                  <span className="font-semibold text-slate-800">{item.avgSalary}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+                )}
+              </button>
+            );
+          })}
         </div>
+
+        {/* Dynamic Main View */}
+        <main>
+          {activeTab === 'overview' && (
+            <AdminOverviewView
+              users={usersList}
+              projects={projectsList}
+              opportunities={opportunitiesList}
+              onNavigateTab={(tab) => setActiveTab(tab as any)}
+            />
+          )}
+
+          {activeTab === 'users' && (
+            <UserManagementView
+              users={usersList}
+              onAddUser={handleAddUser}
+              onUpdateUserRole={handleUpdateUserRole}
+              onToggleUserStatus={handleToggleUserStatus}
+              onDeleteUser={handleDeleteUser}
+            />
+          )}
+
+          {activeTab === 'assessments' && (
+            <AssessmentManagementView
+              questions={questionsList}
+              assessments={assessmentsList}
+              onAddQuestion={handleAddQuestion}
+              onAddAssessment={handleAddAssessment}
+            />
+          )}
+
+          {activeTab === 'community' && (
+            <CommunityManagementView
+              moderationItems={moderationList}
+              onApproveItem={handleApproveCommunityItem}
+              onArchiveItem={handleArchiveCommunityItem}
+            />
+          )}
+
+          {activeTab === 'project-management' && (
+            <ProjectManagementView
+              projects={projectsList}
+              onToggleFeatured={handleToggleProjectFeatured}
+              onVerifyProject={handleVerifyProject}
+            />
+          )}
+
+          {activeTab === 'opportunities' && (
+            <OpportunityManagementView
+              opportunities={opportunitiesList}
+              onAddOpportunity={handleAddOpportunity}
+              onArchiveOpportunity={handleArchiveOpportunity}
+            />
+          )}
+
+          {activeTab === 'analytics' && <AnalyticsView />}
+
+          {activeTab === 'security' && <SecurityDashboardView logs={MOCK_SECURITY_LOGS} />}
+
+          {activeTab === 'settings' && (
+            <SystemSettingsView featureFlags={flagsList} onToggleFlag={handleToggleFlag} />
+          )}
+
+          {activeTab === 'reports' && <AdminReportsView />}
+        </main>
       </div>
     </PortalLayout>
   );
