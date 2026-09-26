@@ -187,6 +187,32 @@
       "emailVerificationToken": "vt_1789725572098_ts61a14",
       "createdAt": "2026-09-18T09:59:32.099Z",
       "updatedAt": "2026-09-18T10:00:49.362Z"
+    },
+    "kushal.manchodu@gmail.com": {
+      "id": "usr_1790412283536_nt9o4fv",
+      "email": "kushal.manchodu@gmail.com",
+      "name": "Kushal",
+      "role": "student",
+      "passwordHash": "$2b$12$GMHb/cCiRWB0AVgh99ZaFe44g/M371N2F4EEvdBa7/PBwyvL4TMFK",
+      "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+      "isDemoUser": false,
+      "isEmailVerified": false,
+      "emailVerificationToken": "vt_1790412283536_bedt6xi",
+      "createdAt": "2026-09-26T08:44:43.536Z",
+      "updatedAt": "2026-09-26T08:44:43.536Z"
+    },
+    "kushal": {
+      "id": "usr_1790412284714_zhyc4c7",
+      "email": "kushal",
+      "name": "kushal.manchodu@gmail.com",
+      "role": "student",
+      "passwordHash": "$2b$12$/Zw3XfRe8lLd1tgjdZwyBu6pWvgdN82.WBSbOqN7azEyQjAbL8WMC",
+      "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+      "isDemoUser": false,
+      "isEmailVerified": false,
+      "emailVerificationToken": "vt_1790412284714_5s4pv5f",
+      "createdAt": "2026-09-26T08:44:44.714Z",
+      "updatedAt": "2026-09-26T08:44:44.714Z"
     }
   },
   "studentProfiles": {
@@ -1533,6 +1559,82 @@
       ],
       "projectCount": "1–2",
       "hackathonExperience": "No"
+    },
+    "kushal.manchodu@gmail.com": {
+      "id": "std-1790412283536-o4a0u",
+      "name": "Kushal",
+      "email": "kushal.manchodu@gmail.com",
+      "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+      "headline": "",
+      "targetRole": "AI & Full Stack Engineer",
+      "academic": {
+        "college": "HITAM",
+        "department": "CSE",
+        "year": "2nd Year",
+        "semester": "1st Semester",
+        "cgpa": 0,
+        "studentId": "",
+        "section": "Section B"
+      },
+      "professional": {
+        "githubUrl": "https://github.com/pratik.badiger@gmail.com",
+        "linkedinUrl": "",
+        "portfolioUrl": "",
+        "bio": "",
+        "totalProjects": 0,
+        "hackathonWins": 0,
+        "researchPapers": 0,
+        "openSourceContributions": 0,
+        "careerGoal": "AI & Full Stack Engineer"
+      },
+      "builderScores": {
+        "overall": 450,
+        "execution": 65,
+        "leadership": 50,
+        "innovation": 60,
+        "problemSolving": 70,
+        "consistency": 55
+      },
+      "employabilityScore": 68,
+      "verifiedSkills": [],
+      "evidences": []
+    },
+    "kushal": {
+      "id": "std-1790412284714-0t8la",
+      "name": "kushal.manchodu@gmail.com",
+      "email": "kushal",
+      "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+      "headline": "",
+      "targetRole": "Software Engineer",
+      "academic": {
+        "college": "",
+        "department": "CSE",
+        "year": "1st Year",
+        "semester": "1st Semester",
+        "cgpa": 0,
+        "studentId": ""
+      },
+      "professional": {
+        "githubUrl": "",
+        "linkedinUrl": "",
+        "portfolioUrl": "",
+        "bio": "",
+        "totalProjects": 0,
+        "hackathonWins": 0,
+        "researchPapers": 0,
+        "openSourceContributions": 0
+      },
+      "builderScores": {
+        "overall": 450,
+        "execution": 65,
+        "leadership": 50,
+        "innovation": 60,
+        "problemSolving": 70,
+        "consistency": 55
+      },
+      "employabilityScore": 68,
+      "verifiedSkills": [],
+      "evidences": []
     }
   },
   "instituteData": {
@@ -1781,6 +1883,70 @@
     ]
   },
   "auditLogs": [
+    {
+      "id": "log-1790412550620",
+      "timestamp": "2026-09-26T08:49:10.620Z",
+      "action": "USER_LOGIN_SUCCESS",
+      "userId": "usr_1790412283536_nt9o4fv",
+      "role": "STUDENT",
+      "details": "Successful authenticated login for: kushal.manchodu@gmail.com"
+    },
+    {
+      "id": "log-1790412549422",
+      "timestamp": "2026-09-26T08:49:09.422Z",
+      "action": "USER_LOGIN_SUCCESS",
+      "userId": "usr_1790412283536_nt9o4fv",
+      "role": "STUDENT",
+      "details": "Successful authenticated login for: kushal.manchodu@gmail.com"
+    },
+    {
+      "id": "log-1790412284714",
+      "timestamp": "2026-09-26T08:44:44.714Z",
+      "action": "USER_REGISTERED_BCRYPT",
+      "userId": "usr_1790412284714_zhyc4c7",
+      "role": "STUDENT",
+      "details": "Registered new verified student identity: kushal"
+    },
+    {
+      "id": "log-1790412283536",
+      "timestamp": "2026-09-26T08:44:43.536Z",
+      "action": "USER_REGISTERED_BCRYPT",
+      "userId": "usr_1790412283536_nt9o4fv",
+      "role": "STUDENT",
+      "details": "Registered new verified student identity: kushal.manchodu@gmail.com"
+    },
+    {
+      "id": "log-1790412150981",
+      "timestamp": "2026-09-26T08:42:30.981Z",
+      "action": "USER_LOGIN_SUCCESS",
+      "userId": "usr-1789123646558",
+      "role": "STUDENT",
+      "details": "Successful authenticated login for: pratik.badiger@gmail.com"
+    },
+    {
+      "id": "log-1790412149741",
+      "timestamp": "2026-09-26T08:42:29.741Z",
+      "action": "USER_LOGIN_SUCCESS",
+      "userId": "usr-1789123646558",
+      "role": "STUDENT",
+      "details": "Successful authenticated login for: pratik.badiger@gmail.com"
+    },
+    {
+      "id": "log-1790412146403",
+      "timestamp": "2026-09-26T08:42:26.403Z",
+      "action": "USER_LOGIN_SUCCESS",
+      "userId": "usr-1789123646558",
+      "role": "STUDENT",
+      "details": "Successful authenticated login for: pratik.badiger@gmail.com"
+    },
+    {
+      "id": "log-1790412145270",
+      "timestamp": "2026-09-26T08:42:25.270Z",
+      "action": "USER_LOGIN_SUCCESS",
+      "userId": "usr-1789123646558",
+      "role": "STUDENT",
+      "details": "Successful authenticated login for: pratik.badiger@gmail.com"
+    },
     {
       "id": "log-1790411815629",
       "timestamp": "2026-09-26T08:36:55.629Z",

@@ -181,6 +181,8 @@ export interface GitHubPinnedRepo {
   language: string;
   url: string;
   topics: string[];
+  activityLevel?: string;
+  lastCommit?: string;
 }
 
 export interface GitHubData {
@@ -190,6 +192,7 @@ export interface GitHubData {
   bio: string;
   publicRepos: number;
   totalStars: number;
+  totalForks?: number;
   followers: number;
   following: number;
   languages: { name: string; percentage: number; color: string }[];
