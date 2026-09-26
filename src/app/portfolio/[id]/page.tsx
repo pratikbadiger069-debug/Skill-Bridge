@@ -167,7 +167,7 @@ export default function PublicPortfolioPage() {
               Verified 6-Pillar Competency Breakdown
             </span>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {builderScoreData.breakdown.map((item) => (
+              {builderScoreData.breakdown.map((item: any) => (
                 <div key={item.pillar} className="p-3 bg-[#FAF9F5] rounded-xl border border-[#E8E5DD] space-y-1">
                   <span className="text-[10px] text-[#6F6A60] uppercase font-medium block truncate">{item.pillar}</span>
                   <strong className="text-base font-bold font-mono block text-[#1B1B1B]">

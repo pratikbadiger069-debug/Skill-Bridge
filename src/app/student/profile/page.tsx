@@ -497,7 +497,7 @@ export default function StudentProfilePage() {
             </div>
 
             <div className="space-y-3 pt-1">
-              {builderScoreData.breakdown.map((item) => (
+              {builderScoreData.breakdown.map((item: any) => (
                 <div key={item.pillar} className="space-y-1">
                   <div className="flex justify-between text-xs">
                     <span className="font-semibold text-[#1B1B1B]">
