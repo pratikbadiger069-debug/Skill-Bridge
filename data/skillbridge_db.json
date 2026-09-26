@@ -1884,6 +1884,22 @@
   },
   "auditLogs": [
     {
+      "id": "log-1790413445332",
+      "timestamp": "2026-09-26T09:04:05.332Z",
+      "action": "USER_LOGIN_SUCCESS",
+      "userId": "usr_1790412283536_nt9o4fv",
+      "role": "STUDENT",
+      "details": "Successful authenticated login for: kushal.manchodu@gmail.com"
+    },
+    {
+      "id": "log-1790413444070",
+      "timestamp": "2026-09-26T09:04:04.070Z",
+      "action": "USER_LOGIN_SUCCESS",
+      "userId": "usr_1790412283536_nt9o4fv",
+      "role": "STUDENT",
+      "details": "Successful authenticated login for: kushal.manchodu@gmail.com"
+    },
+    {
       "id": "log-1790412550620",
       "timestamp": "2026-09-26T08:49:10.620Z",
       "action": "USER_LOGIN_SUCCESS",

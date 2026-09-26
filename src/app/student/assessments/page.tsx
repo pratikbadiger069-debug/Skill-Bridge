@@ -13,6 +13,16 @@ import {
   GeneratedAssessment,
 } from '@/lib/assessment-bank';
 import {
+  calculateStrictXP,
+  calculateBuilderScoreImpact,
+  calculateSkillConfidence,
+  evaluateAntiCheatingLogs,
+  PASSING_THRESHOLDS,
+  AssessmentDifficulty,
+  AntiCheatingLog,
+  SkillConfidenceMatrix,
+} from '@/lib/assessment-engine';
+import {
   AssessmentAttemptRecord,
   QuestionReviewItem,
 } from '@/types';
@@ -35,18 +45,24 @@ import {
   Zap,
   BookOpen,
   FileText,
-  Video,
-  ListOrdered,
   HelpCircle,
   BarChart3,
-  Calendar,
-  ExternalLink,
-  ChevronRight,
   TrendingUp,
   XCircle,
   GraduationCap,
   Layers,
+  Code,
+  AlertCircle,
+  Copy,
+  ExternalLink,
+  Shield,
+  EyeOff,
+  Terminal,
+  FileCode,
+  MessageSquare,
+  Trophy,
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 
 export default function StudentAssessmentsPage() {
   const {
@@ -66,6 +82,9 @@ export default function StudentAssessmentsPage() {
     userDept.includes('AI') ? 'AI & Machine Learning' : userDept.includes('Cyber') ? 'Cybersecurity' : 'Computer Science'
   );
 
+  // Certification Mode Toggle
+  const [certificationMode, setCertificationMode] = useState<boolean>(false);
+
   // Test Runner State
   const [activeSession, setActiveSession] = useState<GeneratedAssessment | null>(null);
   const [currentQIndex, setCurrentQIndex] = useState(0);
@@ -75,12 +94,49 @@ export default function StudentAssessmentsPage() {
   const [timeLeftSec, setTimeLeftSec] = useState(1200); // 20 minutes
   const [currentAttemptNumber, setCurrentAttemptNumber] = useState<number>(1);
 
+  // Anti-Cheating Tracking State
+  const [tabSwitches, setTabSwitches] = useState(0);
+  const [copyPasteAttempts, setCopyPasteAttempts] = useState(0);
+  const [rapidClicks, setRapidClicks] = useState(0);
+  const [lastQuestionTimestamp, setLastQuestionTimestamp] = useState<number>(Date.now());
+  const [antiCheatingLog, setAntiCheatingLog] = useState<AntiCheatingLog | null>(null);
+
   // Viewing Results Modal State
   const [viewingRecord, setViewingRecord] = useState<AssessmentAttemptRecord | null>(null);
-  const [activeResultTab, setActiveResultTab] = useState<'summary' | 'review' | 'analytics' | 'plan'>('summary');
+  const [activeResultTab, setActiveResultTab] = useState<'summary' | 'review' | 'skill_matrix' | 'plan'>('summary');
   const [reviewFilter, setReviewFilter] = useState<'all' | 'correct' | 'incorrect'>('all');
+  const [skillMatrix, setSkillMatrix] = useState<SkillConfidenceMatrix | null>(null);
+
+  // Main Page View Mode
+  const [mainTab, setMainTab] = useState<'assessments' | 'leaderboard'>('assessments');
 
   const levelInfo = getLevelInfo(xp);
+
+  // Anti-Cheating Event Listeners during Active Test
+  useEffect(() => {
+    if (!activeSession || viewingRecord) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setTabSwitches((prev) => prev + 1);
+      }
+    };
+
+    const handleCopyPaste = (e: ClipboardEvent) => {
+      e.preventDefault();
+      setCopyPasteAttempts((prev) => prev + 1);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('copy', handleCopyPaste);
+    document.addEventListener('paste', handleCopyPaste);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('copy', handleCopyPaste);
+      document.removeEventListener('paste', handleCopyPaste);
+    };
+  }, [activeSession, viewingRecord]);
 
   // Timer countdown during active session
   useEffect(() => {
@@ -119,7 +175,14 @@ export default function StudentAssessmentsPage() {
     setSessionStartTime(Date.now());
     setCurrentAttemptNumber(attemptNum);
     setViewingRecord(null);
-    setTimeLeftSec(session.estimatedMinutes * 60);
+    setTimeLeftSec(certificationMode ? 15 * 60 : session.estimatedMinutes * 60);
+
+    // Reset Anti-Cheating Counters
+    setTabSwitches(0);
+    setCopyPasteAttempts(0);
+    setRapidClicks(0);
+    setLastQuestionTimestamp(Date.now());
+    setAntiCheatingLog(null);
   };
 
   const handleSelectOption = (idx: number) => {
@@ -128,6 +191,13 @@ export default function StudentAssessmentsPage() {
 
   const handleNextQuestion = () => {
     if (selectedOptionIndex === null || !activeSession) return;
+
+    const now = Date.now();
+    const elapsedSinceLastQ = now - lastQuestionTimestamp;
+    if (elapsedSinceLastQ < 500) {
+      setRapidClicks((prev) => prev + 1);
+    }
+    setLastQuestionTimestamp(now);
 
     const currentQ = activeSession.questions[currentQIndex];
     const updatedAnswers = {
@@ -150,28 +220,80 @@ export default function StudentAssessmentsPage() {
     const answers = finalAnswers || userAnswers;
     const timeTakenSeconds = Math.max(10, Math.round((Date.now() - sessionStartTime) / 1000));
 
-    const attemptRecord = buildAssessmentAttemptRecord(
+    // Calculate score & strict passing rules
+    let correctCount = 0;
+    activeSession.questions.forEach((q) => {
+      if (answers[q.id] === q.correctAnswer) correctCount++;
+    });
+    const scorePct = Math.round((correctCount / activeSession.questions.length) * 100);
+
+    // Determine difficulty level
+    const difficultyKey: AssessmentDifficulty =
+      activeSession.difficultyTier === 'Industry Expert'
+        ? 'Expert'
+        : activeSession.difficultyTier === 'Advanced'
+        ? 'Advanced'
+        : activeSession.difficultyTier === 'Intermediate'
+        ? 'Medium'
+        : 'Easy';
+
+    const strictResult = calculateStrictXP(scorePct, difficultyKey);
+    const builderImpact = calculateBuilderScoreImpact(scorePct, strictResult.passed, difficultyKey);
+
+    // Evaluate anti-cheating logs
+    const evaluatedAntiCheat = evaluateAntiCheatingLogs({
+      tabSwitches,
+      copyPasteAttempts,
+      rapidClicks,
+      uniformPatternDetected: false,
+    });
+    setAntiCheatingLog(evaluatedAntiCheat);
+
+    // Build base attempt record
+    const baseAttemptRecord = buildAssessmentAttemptRecord(
       activeSession,
       answers,
       timeTakenSeconds,
       currentAttemptNumber
     );
 
-    // Save to Zustand store & persist in history
-    recordAssessmentAttempt(attemptRecord);
-    addXP(attemptRecord.xpEarned);
+    // Enforce Strict XP rules
+    const finalRecord: AssessmentAttemptRecord = {
+      ...baseAttemptRecord,
+      score: scorePct,
+      passed: strictResult.passed,
+      xpEarned: strictResult.xpEarned,
+      builderScoreImpact: builderImpact,
+    };
+
+    // Save attempt to Zustand store
+    recordAssessmentAttempt(finalRecord);
+    if (finalRecord.xpEarned > 0) {
+      addXP(finalRecord.xpEarned);
+    }
+
+    // Update Skill Confidence Matrix
+    const updatedMatrix = calculateSkillConfidence(
+      activeSession.topic,
+      scorePct,
+      88,
+      githubData.connected ? 90 : 75,
+      92
+    );
+    setSkillMatrix(updatedMatrix);
 
     // If passed, auto-record verified skill
-    if (attemptRecord.passed) {
+    if (finalRecord.passed) {
       addVerifiedSkill(
         activeSession.topic,
-        activeSession.difficultyTier === 'Industry Expert' ? 'Expert' : 'Advanced',
+        difficultyKey,
         (activeSession.department.includes('AI') ? 'AI & ML' : 'Programming') as any
       );
+      confetti({ particleCount: 50, spread: 70, origin: { y: 0.7 } });
     }
 
     setActiveSession(null);
-    setViewingRecord(attemptRecord);
+    setViewingRecord(finalRecord);
     setActiveResultTab('summary');
   };
 
@@ -179,930 +301,479 @@ export default function StudentAssessmentsPage() {
 
   return (
     <PortalLayout>
-      <div className="space-y-8 max-w-[1240px] mx-auto pb-20">
-        
+      <div className="space-y-8 max-w-[1240px] mx-auto pb-20 font-sans text-[#1B1B1B]">
         {/* Header Banner */}
         <div className="p-8 rounded-3xl bg-white border border-[#E8E5DD] shadow-xs space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="px-3 py-0.5 rounded-full bg-[#C76A2A]/10 text-[#C76A2A] text-xs font-bold font-mono uppercase">
-                  Assessment System 4.0
+                  Strict Verification Engine
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full bg-[#2F7A45]/10 text-[#2F7A45] text-xs font-bold flex items-center gap-1">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  Industry Certification Standard
+                  No Participation XP
                 </span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-bold text-[#1B1B1B] tracking-tight mt-1.5">
-                Benchmark Skill Assessments
+                Benchmark Skill Verification Engine
               </h1>
-              <p className="text-xs sm:text-sm text-[#6F6A60] mt-1">
-                Rigorous, randomized diagnostic evaluations with deep question-level review, learning references, and personalized AI study plans.
+              <p className="text-xs sm:text-sm text-[#6F6A60] mt-1 max-w-3xl leading-relaxed">
+                Production assessment suite with strict passing thresholds (Easy: 60%, Medium: 70%, Advanced: 75%, Expert: 80%), scaled XP rewards, anti-cheating tracking, and multi-source skill confidence matrix.
               </p>
             </div>
 
-            {/* Profile Context Pill */}
-            <div className="flex items-center gap-4 bg-[#F6F4EE] p-3.5 rounded-2xl border border-[#E8E5DD] text-xs self-start md:self-auto shrink-0">
-              <div>
-                <span className="text-[10px] text-[#6F6A60] block font-medium uppercase">Domain Track</span>
-                <strong className="text-[#1B1B1B] font-bold">{userDept}</strong>
-              </div>
-              <div className="w-px h-8 bg-[#E8E5DD]" />
-              <div>
-                <span className="text-[10px] text-[#6F6A60] block font-medium uppercase">Current Level</span>
-                <strong className="text-[#C76A2A] font-mono font-bold">Lvl {levelInfo.level} • {streakDays}d Streak</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 6 Department Tracks Selector */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#6F6A60]">
-              Select Engineering &amp; Professional Domain
-            </span>
-            <span className="text-xs text-[#C76A2A] font-medium font-mono">
-              6 Core Domains Available
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {DEPARTMENT_TRACKS.map((track) => {
-              const isSelected = selectedDepartment === track.name;
-              return (
+            {/* Mode Toggle & Profile Context */}
+            <div className="flex items-center gap-3 flex-wrap self-start md:self-auto">
+              <div className="p-1 rounded-2xl bg-[#FAF9F5] border border-[#E8E5DD] flex items-center text-xs font-semibold">
                 <button
-                  key={track.id}
-                  onClick={() => setSelectedDepartment(track.name)}
-                  className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between gap-3 cursor-pointer ${
-                    isSelected
-                      ? 'bg-[#1B1B1B] text-white border-[#1B1B1B] shadow-sm'
-                      : 'bg-white border-[#E8E5DD] hover:border-[#C76A2A] text-[#1B1B1B]'
+                  onClick={() => setMainTab('assessments')}
+                  className={`px-4 py-2 rounded-xl transition-all ${
+                    mainTab === 'assessments'
+                      ? 'bg-[#1B1B1B] text-white shadow-xs'
+                      : 'text-[#6F6A60] hover:text-[#1B1B1B]'
                   }`}
                 >
-                  <div className="text-2xl">{track.icon}</div>
-                  <div>
-                    <h3 className="text-xs font-bold leading-snug">{track.name}</h3>
-                    <p className={`text-[10px] mt-0.5 ${isSelected ? 'text-gray-300' : 'text-[#6F6A60]'}`}>
-                      {track.topics.length} benchmark topics
-                    </p>
-                  </div>
+                  Diagnostic Suite
                 </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Domain Topics Grid with Retake & Completed States */}
-        <div className="p-6 rounded-3xl bg-white border border-[#E8E5DD] shadow-xs space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#E8E5DD]">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xl">{activeTrack.icon}</span>
-                <h2 className="text-lg font-bold text-[#1B1B1B]">{activeTrack.name} Certifications</h2>
-              </div>
-              <p className="text-xs text-[#6F6A60] mt-0.5">{activeTrack.description}</p>
-            </div>
-
-            <span className="text-xs font-mono font-bold text-[#2F7A45] bg-[#2F7A45]/10 px-3 py-1 rounded-full self-start sm:self-auto">
-              10 Questions • Anti-Cheating Randomization
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {activeTrack.topics.map((topic) => {
-              const attempts = assessmentHistory[topic] || [];
-              const isCompleted = attempts.length > 0;
-              const latestAttempt = isCompleted ? attempts[attempts.length - 1] : null;
-              const bestScore = isCompleted ? Math.max(...attempts.map((a) => a.score)) : 0;
-              const firstScore = isCompleted ? attempts[0].score : 0;
-              const improvement = isCompleted && attempts.length > 1 ? latestAttempt!.score - firstScore : 0;
-
-              return (
-                <div
-                  key={topic}
-                  className={`p-5 rounded-2xl border transition-all space-y-4 flex flex-col justify-between ${
-                    isCompleted
-                      ? 'bg-[#FCFAF7] border-[#E8E5DD] hover:border-[#2F7A45]'
-                      : 'bg-white border-[#E8E5DD] hover:border-[#1B1B1B]'
+                <button
+                  onClick={() => setMainTab('leaderboard')}
+                  className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+                    mainTab === 'leaderboard'
+                      ? 'bg-[#1B1B1B] text-white shadow-xs'
+                      : 'text-[#6F6A60] hover:text-[#1B1B1B]'
                   }`}
                 >
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <h4 className="text-sm font-bold text-[#1B1B1B]">{topic}</h4>
-                      {isCompleted ? (
-                        <span className="px-2.5 py-0.5 rounded-full bg-[#2F7A45]/10 text-[#2F7A45] text-[11px] font-bold flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          ✅ Completed
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-full bg-[#C76A2A]/10 text-[#C76A2A] text-[10px] font-bold">
-                          Adaptive Tier
-                        </span>
-                      )}
-                    </div>
-                    
-                    <p className="text-xs text-[#6F6A60] leading-relaxed">
-                      10 diagnostic questions evaluating design patterns, error handling, performance &amp; real-world problem solving.
-                    </p>
+                  <Trophy className="w-3.5 h-3.5 text-[#C76A2A]" />
+                  <span>Verified Leaderboard</span>
+                </button>
+              </div>
+            </div>
+          </div>
 
-                    {/* Attempt Tracking Summary if Completed */}
-                    {isCompleted && (
-                      <div className="p-3 bg-white rounded-xl border border-[#E8E5DD] space-y-1.5 text-xs">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-[#6F6A60]">Attempts: <strong>#{attempts.length}</strong></span>
-                          <span className="text-[#6F6A60]">Best Score: <strong className="text-[#1B1B1B] font-mono">{bestScore}%</strong></span>
-                        </div>
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-[#6F6A60]">Latest: <strong className="text-[#1B1B1B] font-mono">{latestAttempt?.score}%</strong></span>
-                          {attempts.length > 1 && (
-                            <span className={`font-bold font-mono flex items-center gap-0.5 ${improvement >= 0 ? 'text-[#2F7A45]' : 'text-red-500'}`}>
-                              <TrendingUp className="w-3 h-3" />
-                              {improvement >= 0 ? `+${improvement}%` : `${improvement}%`}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="pt-3 flex items-center justify-between border-t border-[#E8E5DD] text-xs">
-                    <div className="flex items-center gap-1.5 text-[11px] font-mono text-[#6F6A60]">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>20 Mins</span>
-                      <span>•</span>
-                      <span className="text-[#C76A2A] font-bold">+100 XP</span>
-                    </div>
-
-                    {isCompleted ? (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            setViewingRecord(latestAttempt);
-                            setActiveResultTab('summary');
-                          }}
-                          className="px-2.5 py-1.5 bg-[#F6F4EE] hover:bg-[#E8E5DD] text-[#1B1B1B] text-xs font-bold rounded-xl transition-colors cursor-pointer"
-                        >
-                          View Results
-                        </button>
-                        <button
-                          onClick={() => handleStartTopic(topic, activeTrack.name, attempts.length + 1)}
-                          className="px-3 py-1.5 bg-[#1B1B1B] hover:bg-[#C76A2A] text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                          <span>Retake</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => handleStartTopic(topic, activeTrack.name, 1)}
-                        className="px-3 py-1.5 bg-[#1B1B1B] hover:bg-[#C76A2A] text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-                      >
-                        <Play className="w-3 h-3 fill-current" />
-                        <span>Start Assessment</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          {/* Strict Threshold Rules Bar */}
+          <div className="p-4 rounded-2xl bg-[#F6F4EE] border border-[#E8E5DD] grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div className="p-2.5 rounded-xl bg-white border border-[#E8E5DD]">
+              <span className="text-[10px] text-[#6F6A60] uppercase block font-semibold">Easy Passing</span>
+              <span className="font-bold text-[#1B1B1B]">60% Score • Min 25 XP</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-white border border-[#E8E5DD]">
+              <span className="text-[10px] text-[#6F6A60] uppercase block font-semibold">Medium Passing</span>
+              <span className="font-bold text-[#1B1B1B]">70% Score • Min 50 XP</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-white border border-[#E8E5DD]">
+              <span className="text-[10px] text-[#6F6A60] uppercase block font-semibold">Advanced Passing</span>
+              <span className="font-bold text-[#1B1B1B]">75% Score • Min 87 XP</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-white border border-[#E8E5DD]">
+              <span className="text-[10px] text-[#6F6A60] uppercase block font-semibold">Expert Passing</span>
+              <span className="font-bold text-[#C76A2A]">80% Score • Min 125 XP</span>
+            </div>
           </div>
         </div>
 
-      </div>
-
-      {/* Active Assessment Runner Modal */}
-      {activeSession && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-[#E8E5DD] max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl relative max-h-[92vh] overflow-y-auto">
-            {/* Modal Top Bar */}
-            <div className="flex items-center justify-between pb-3 border-b border-[#E8E5DD]">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-md bg-[#C76A2A]/10 text-[#C76A2A] text-[10px] font-mono font-bold uppercase">
-                    {activeSession.difficultyTier} • Attempt #{currentAttemptNumber}
-                  </span>
-                  <span className="text-xs text-[#6F6A60]">
-                    Question {currentQIndex + 1} of {activeSession.questions.length}
-                  </span>
-                </div>
-                <h3 className="text-base font-bold text-[#1B1B1B] mt-0.5">{activeSession.title}</h3>
-              </div>
-
-              {/* Timer Pill */}
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#F6F4EE] border border-[#E8E5DD] text-xs font-mono font-bold text-[#1B1B1B]">
-                <Clock className="w-3.5 h-3.5 text-[#C76A2A]" />
-                <span>{Math.floor(timeLeftSec / 60)}:{String(timeLeftSec % 60).padStart(2, '0')}</span>
-              </div>
-            </div>
-
-            {/* Question Progress Bar */}
-            <div className="w-full h-1.5 bg-[#F6F4EE] rounded-full overflow-hidden border border-[#E8E5DD]">
-              <div
-                className="h-full bg-[#C76A2A] rounded-full transition-all duration-300"
-                style={{ width: `${((currentQIndex + 1) / activeSession.questions.length) * 100}%` }}
-              />
-            </div>
-
-            {/* Question Context & Code Snippet */}
+        {/* MAIN TAB 1: ASSESSMENTS SUITE */}
+        {mainTab === 'assessments' && (
+          <div className="space-y-6">
+            {/* Domain Tracks Selector */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between text-[11px] font-bold text-[#6F6A60] uppercase tracking-wider">
-                <span>{activeSession.questions[currentQIndex]?.subtopic || activeSession.questions[currentQIndex]?.topic}</span>
-                <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                  {activeSession.questions[currentQIndex]?.difficulty}
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#6F6A60]">
+                  Select Engineering &amp; Professional Domain
                 </span>
-              </div>
-              <p className="text-sm font-bold text-[#1B1B1B] leading-relaxed">
-                {activeSession.questions[currentQIndex]?.question}
-              </p>
-
-              {activeSession.questions[currentQIndex]?.codeSnippet && (
-                <pre className="p-3.5 rounded-xl bg-[#1B1B1B] text-gray-100 font-mono text-xs overflow-x-auto border border-gray-800">
-                  <code>{activeSession.questions[currentQIndex]?.codeSnippet}</code>
-                </pre>
-              )}
-            </div>
-
-            {/* Multiple Choice Options */}
-            <div className="space-y-2.5 pt-1">
-              {activeSession.questions[currentQIndex]?.options.map((opt, idx) => {
-                const isSelected = selectedOptionIndex === idx;
-                return (
-                  <button
-                    key={opt.id}
-                    onClick={() => handleSelectOption(idx)}
-                    className={`w-full p-3.5 rounded-2xl border text-left text-xs transition-all flex items-center justify-between gap-3 cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#1B1B1B] text-white border-[#1B1B1B] shadow-xs'
-                        : 'bg-white border-[#E8E5DD] hover:border-[#C76A2A] text-[#1B1B1B]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
-                          isSelected ? 'bg-white text-[#1B1B1B]' : 'bg-[#F6F4EE] text-[#6F6A60]'
-                        }`}
-                      >
-                        {String.fromCharCode(65 + idx)}
-                      </span>
-                      <span className="leading-snug">{opt.text}</span>
-                    </div>
-                    {isSelected && <Check className="w-4 h-4 text-[#C76A2A] shrink-0" />}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Footer Controls */}
-            <div className="flex items-center justify-between pt-3 border-t border-[#E8E5DD]">
-              <button
-                onClick={() => setActiveSession(null)}
-                className="px-3 py-1.5 text-xs text-[#6F6A60] hover:text-[#1B1B1B] transition-colors cursor-pointer"
-              >
-                Quit Assessment
-              </button>
-
-              <button
-                onClick={handleNextQuestion}
-                disabled={selectedOptionIndex === null}
-                className="px-5 py-2.5 bg-[#1B1B1B] hover:bg-[#C76A2A] text-white text-xs font-bold rounded-xl transition-all disabled:opacity-40 flex items-center gap-2 cursor-pointer shadow-xs"
-              >
-                <span>{currentQIndex === activeSession.questions.length - 1 ? 'Finish & Generate Report' : 'Next Question'}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Assessment Results & Certification Report Modal (Assessment System 4.0) */}
-      {viewingRecord && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6">
-          <div className="bg-white rounded-3xl border border-[#E8E5DD] max-w-4xl w-full p-6 sm:p-8 space-y-6 shadow-2xl relative max-h-[94vh] overflow-y-auto">
-            
-            {/* Header / Close */}
-            <div className="flex items-start justify-between gap-4 pb-4 border-b border-[#E8E5DD]">
-              <div>
                 <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#C76A2A]/10 text-[#C76A2A] text-xs font-mono font-bold uppercase">
-                    Attempt #{viewingRecord.attemptNumber} Report
-                  </span>
-                  <span className="text-xs text-[#6F6A60]">{viewingRecord.date}</span>
-                </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-[#1B1B1B] tracking-tight mt-1">
-                  {viewingRecord.topic} Assessment Report
-                </h2>
-                <p className="text-xs text-[#6F6A60] mt-0.5">
-                  Verified diagnostic analysis, answer explanations, dynamic resources, and AI learning plan.
-                </p>
-              </div>
-
-              <button
-                onClick={() => setViewingRecord(null)}
-                className="p-2 rounded-xl bg-[#F6F4EE] hover:bg-[#E8E5DD] text-[#6F6A60] hover:text-[#1B1B1B] transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Navigation Tabs */}
-            <div className="flex items-center gap-2 border-b border-[#E8E5DD] pb-2 overflow-x-auto text-xs font-bold">
-              {[
-                { id: 'summary', label: 'Summary Overview', icon: Award },
-                { id: 'review', label: `Question Review (${viewingRecord.reviewItems.length})`, icon: ListOrdered },
-                { id: 'analytics', label: 'Performance Analytics', icon: BarChart3 },
-                { id: 'plan', label: 'AI Learning Plan', icon: Brain },
-              ].map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeResultTab === tab.id;
-                return (
+                  <span className="text-xs font-semibold text-[#6F6A60]">Certification Mode:</span>
                   <button
-                    key={tab.id}
-                    onClick={() => setActiveResultTab(tab.id as any)}
-                    className={`px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                      isActive
-                        ? 'bg-[#1B1B1B] text-white shadow-xs'
-                        : 'bg-[#F6F4EE] text-[#6F6A60] hover:text-[#1B1B1B]'
+                    onClick={() => setCertificationMode(!certificationMode)}
+                    className={`px-3 py-1 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                      certificationMode
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-white border border-[#E8E5DD] text-[#6F6A60]'
                     }`}
                   >
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{tab.label}</span>
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>{certificationMode ? 'Strict Proctored ON' : 'Standard Practice'}</span>
                   </button>
-                );
-              })}
-            </div>
+                </div>
+              </div>
 
-            {/* Tab 1: Summary Section */}
-            {activeResultTab === 'summary' && (
-              <div className="space-y-6">
-                {/* Result Hero Banner */}
-                <div
-                  className={`p-6 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-4 ${
-                    viewingRecord.passed
-                      ? 'bg-[#2F7A45]/5 border-[#2F7A45]/30'
-                      : 'bg-orange-50/60 border-orange-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-4 text-center sm:text-left">
-                    <div
-                      className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0 ${
-                        viewingRecord.passed ? 'bg-[#2F7A45]/15 text-[#2F7A45]' : 'bg-orange-100 text-orange-600'
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {DEPARTMENT_TRACKS.map((track) => {
+                  const isSelected = selectedDepartment === track.name;
+                  return (
+                    <button
+                      key={track.id}
+                      onClick={() => setSelectedDepartment(track.name)}
+                      className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between gap-3 cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#1B1B1B] text-white border-[#1B1B1B] shadow-sm'
+                          : 'bg-white border-[#E8E5DD] hover:border-[#C76A2A] text-[#1B1B1B]'
                       }`}
                     >
-                      {viewingRecord.passed ? '🏆' : '🎯'}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 justify-center sm:justify-start">
-                        <span
-                          className={`text-xs font-bold uppercase px-2 py-0.5 rounded-md ${
-                            viewingRecord.passed ? 'bg-[#2F7A45] text-white' : 'bg-orange-600 text-white'
-                          }`}
-                        >
-                          {viewingRecord.passed ? 'PASS' : 'NEEDS REVISION'}
-                        </span>
-                        <span className="text-xs text-[#6F6A60]">Difficulty: {viewingRecord.difficultyReached}</span>
+                      <div className="text-2xl">{track.icon}</div>
+                      <div>
+                        <h3 className="text-xs font-bold leading-snug">{track.name}</h3>
+                        <p className={`text-[10px] mt-0.5 ${isSelected ? 'text-gray-300' : 'text-[#6F6A60]'}`}>
+                          {track.topics.length} benchmark topics
+                        </p>
                       </div>
-                      <h3 className="text-lg font-bold text-[#1B1B1B] mt-1">
-                        {viewingRecord.passed
-                          ? `Passed with ${viewingRecord.score}% Score`
-                          : `Completed with ${viewingRecord.score}% Score`}
-                      </h3>
-                      <p className="text-xs text-[#6F6A60] mt-0.5">
-                        {viewingRecord.passed
-                          ? 'Demonstrated strong domain competence. Verified proof badge applied to your profile.'
-                          : 'Review weak concept questions below and execute your personalized 5-Day study plan to retake.'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => {
-                        const nextAttempt = (assessmentHistory[viewingRecord.topic] || []).length + 1;
-                        setViewingRecord(null);
-                        handleStartTopic(viewingRecord.topic, viewingRecord.department, nextAttempt);
-                      }}
-                      className="px-4 py-2.5 bg-[#1B1B1B] hover:bg-[#C76A2A] text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Retake Assessment</span>
                     </button>
-                  </div>
-                </div>
-
-                {/* Performance Metric Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="p-4 bg-[#F6F4EE] rounded-2xl border border-[#E8E5DD] space-y-1">
-                    <span className="text-[10px] text-[#6F6A60] uppercase font-bold block">Total Questions</span>
-                    <strong className="text-2xl font-bold font-mono text-[#1B1B1B]">{viewingRecord.totalQuestions}</strong>
-                    <div className="text-[10px] text-[#6F6A60] flex items-center gap-2 pt-0.5">
-                      <span className="text-[#2F7A45] font-bold">{viewingRecord.correctCount} Correct</span>
-                      <span>•</span>
-                      <span className="text-red-500 font-bold">{viewingRecord.wrongCount} Wrong</span>
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-[#F6F4EE] rounded-2xl border border-[#E8E5DD] space-y-1">
-                    <span className="text-[10px] text-[#6F6A60] uppercase font-bold block">Score Percentage</span>
-                    <strong className="text-2xl font-bold font-mono text-[#1B1B1B]">{viewingRecord.score}%</strong>
-                    <span className="text-[10px] text-[#6F6A60] block pt-0.5">Pass Threshold: 70%</span>
-                  </div>
-
-                  <div className="p-4 bg-[#F6F4EE] rounded-2xl border border-[#E8E5DD] space-y-1">
-                    <span className="text-[10px] text-[#6F6A60] uppercase font-bold block">XP Earned</span>
-                    <strong className="text-2xl font-bold font-mono text-[#C76A2A]">+{viewingRecord.xpEarned} XP</strong>
-                    <span className="text-[10px] text-[#6F6A60] block pt-0.5">Impact: +{viewingRecord.builderScoreImpact} pts</span>
-                  </div>
-
-                  <div className="p-4 bg-[#F6F4EE] rounded-2xl border border-[#E8E5DD] space-y-1">
-                    <span className="text-[10px] text-[#6F6A60] uppercase font-bold block">Time Taken</span>
-                    <strong className="text-2xl font-bold font-mono text-[#1B1B1B]">{viewingRecord.timeTakenFormatted}</strong>
-                    <span className="text-[10px] text-[#6F6A60] block pt-0.5">Avg: {Math.round(viewingRecord.timeTakenSeconds / viewingRecord.totalQuestions)}s / question</span>
-                  </div>
-                </div>
-
-                {/* Quick Diagnostics Highlights */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="p-4 bg-white rounded-2xl border border-[#E8E5DD] space-y-2">
-                    <span className="text-xs font-bold text-[#2F7A45] flex items-center gap-1.5 uppercase tracking-wider">
-                      <CheckCircle2 className="w-4 h-4" /> Strong Concept Areas
-                    </span>
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {viewingRecord.strongAreas.map((area) => (
-                        <span key={area} className="px-2.5 py-1 bg-[#2F7A45]/10 text-[#2F7A45] text-xs font-bold rounded-lg">
-                          ✓ {area}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-white rounded-2xl border border-[#E8E5DD] space-y-2">
-                    <span className="text-xs font-bold text-[#C76A2A] flex items-center gap-1.5 uppercase tracking-wider">
-                      <AlertTriangle className="w-4 h-4" /> Areas Requiring Revision
-                    </span>
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {viewingRecord.weakAreas.map((area) => (
-                        <span key={area} className="px-2.5 py-1 bg-red-50 text-red-600 text-xs font-bold rounded-lg border border-red-100">
-                          ⚠ {area}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Callout to Question Review */}
-                <div className="p-4 bg-[#F6F4EE] rounded-2xl border border-[#E8E5DD] flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <BookOpen className="w-5 h-5 text-[#C76A2A]" />
-                    <div>
-                      <h4 className="text-xs font-bold text-[#1B1B1B]">Examine Every Question &amp; Solution</h4>
-                      <p className="text-[11px] text-[#6F6A60]">Review explanations, diagnostic root causes, and official documentation.</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setActiveResultTab('review')}
-                    className="px-3.5 py-1.5 bg-white border border-[#E8E5DD] hover:border-[#1B1B1B] text-[#1B1B1B] text-xs font-bold rounded-xl transition-colors cursor-pointer shrink-0"
-                  >
-                    Open Review
-                  </button>
-                </div>
+                  );
+                })}
               </div>
-            )}
+            </div>
 
-            {/* Tab 2: Question Review Section (with Why Missed + Learning References) */}
-            {activeResultTab === 'review' && (
-              <div className="space-y-4">
-                {/* Review Filters */}
-                <div className="flex items-center justify-between pb-2 border-b border-[#E8E5DD]">
-                  <span className="text-xs font-bold text-[#6F6A60]">Filter Questions:</span>
-                  <div className="flex items-center gap-1.5 text-xs">
-                    {(['all', 'correct', 'incorrect'] as const).map((filter) => (
-                      <button
-                        key={filter}
-                        onClick={() => setReviewFilter(filter)}
-                        className={`px-3 py-1 rounded-lg font-bold capitalize transition-colors cursor-pointer ${
-                          reviewFilter === filter
-                            ? 'bg-[#1B1B1B] text-white'
-                            : 'bg-[#F6F4EE] text-[#6F6A60] hover:text-[#1B1B1B]'
-                        }`}
-                      >
-                        {filter} {filter === 'correct' ? `(${viewingRecord.correctCount})` : filter === 'incorrect' ? `(${viewingRecord.wrongCount})` : `(${viewingRecord.totalQuestions})`}
-                      </button>
-                    ))}
-                  </div>
+            {/* Selected Domain Topic Cards */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-[#1B1B1B]">{activeTrack.name} Evaluation Topics</h2>
+                  <p className="text-xs text-[#6F6A60]">{activeTrack.description}</p>
                 </div>
+                <span className="px-3 py-1 rounded-full bg-white border border-[#E8E5DD] text-xs font-mono font-bold text-[#1B1B1B]">
+                  {activeTrack.topics.length} Available Assessments
+                </span>
+              </div>
 
-                {/* Questions List */}
-                <div className="space-y-4">
-                  {viewingRecord.reviewItems
-                    .filter((item) => {
-                      if (reviewFilter === 'correct') return item.isCorrect;
-                      if (reviewFilter === 'incorrect') return !item.isCorrect;
-                      return true;
-                    })
-                    .map((item) => (
-                      <div
-                        key={item.questionId}
-                        className={`p-5 rounded-2xl border space-y-4 ${
-                          item.isCorrect ? 'bg-white border-[#E8E5DD]' : 'bg-red-50/20 border-red-200/80'
-                        }`}
-                      >
-                        {/* Question Header */}
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-mono font-bold text-[#6F6A60]">
-                              Question {item.questionNumber}
-                            </span>
-                            <span className="text-[11px] font-bold text-[#6F6A60] bg-[#F6F4EE] px-2 py-0.5 rounded">
-                              {item.subtopic}
-                            </span>
-                            <span className="text-[10px] text-gray-500 font-mono">
-                              [{item.difficulty}]
-                            </span>
-                          </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {activeTrack.topics.map((topic, idx) => {
+                  const historyRecords = (assessmentHistory && (assessmentHistory as Record<string, AssessmentAttemptRecord[]>)[topic]) || [];
+                  const bestRecord = historyRecords.length > 0
+                    ? [...historyRecords].sort((a, b) => b.score - a.score)[0]
+                    : undefined;
 
+                  const difficultyLabel: AssessmentDifficulty =
+                    idx % 4 === 3 ? 'Expert' : idx % 4 === 2 ? 'Advanced' : idx % 4 === 1 ? 'Medium' : 'Easy';
+                  const threshold = PASSING_THRESHOLDS[difficultyLabel];
+
+                  return (
+                    <motion.div
+                      key={topic}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.03 }}
+                      className="p-6 rounded-2xl bg-white border border-[#E8E5DD] hover:border-[#1B1B1B] transition-all space-y-4 flex flex-col justify-between shadow-xs"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="px-2.5 py-0.5 rounded-md bg-[#F6F4EE] border border-[#E8E5DD] text-xs font-mono font-bold text-[#1B1B1B]">
+                            Topic #{idx + 1}
+                          </span>
                           <span
-                            className={`px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1 ${
-                              item.isCorrect
-                                ? 'bg-[#2F7A45]/10 text-[#2F7A45]'
-                                : 'bg-red-100 text-red-700'
+                            className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                              difficultyLabel === 'Expert'
+                                ? 'bg-rose-100 text-rose-800'
+                                : difficultyLabel === 'Advanced'
+                                ? 'bg-amber-100 text-amber-900'
+                                : difficultyLabel === 'Medium'
+                                ? 'bg-blue-100 text-blue-900'
+                                : 'bg-emerald-100 text-emerald-900'
                             }`}
                           >
-                            {item.isCorrect ? (
-                              <>
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Correct
-                              </>
-                            ) : (
-                              <>
-                                <XCircle className="w-3.5 h-3.5" /> Incorrect
-                              </>
-                            )}
+                            {difficultyLabel} ({threshold}% Threshold)
                           </span>
                         </div>
 
-                        {/* Question Body */}
-                        <p className="text-xs sm:text-sm font-bold text-[#1B1B1B] leading-relaxed">
-                          {item.question}
-                        </p>
+                        <h3 className="text-base font-bold text-[#1B1B1B]">{topic}</h3>
 
-                        {item.codeSnippet && (
-                          <pre className="p-3 rounded-xl bg-[#1B1B1B] text-gray-100 font-mono text-xs overflow-x-auto">
-                            <code>{item.codeSnippet}</code>
-                          </pre>
-                        )}
-
-                        {/* User Answer vs Correct Answer Box */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                          <div
-                            className={`p-3 rounded-xl border ${
-                              item.isCorrect
-                                ? 'bg-[#2F7A45]/5 border-[#2F7A45]/30 text-[#1B1B1B]'
-                                : 'bg-red-50 border-red-200 text-red-900'
-                            }`}
-                          >
-                            <span className="text-[10px] font-bold uppercase block opacity-70">Your Answer:</span>
-                            <strong className="mt-0.5 block leading-snug">{item.userAnswerText}</strong>
-                          </div>
-
-                          <div className="p-3 rounded-xl bg-[#2F7A45]/10 border border-[#2F7A45]/30 text-[#1B1B1B]">
-                            <span className="text-[10px] font-bold uppercase text-[#2F7A45] block">Correct Answer:</span>
-                            <strong className="mt-0.5 block leading-snug text-[#2F7A45]">{item.correctAnswerText}</strong>
-                          </div>
-                        </div>
-
-                        {/* Explanation & Diagnostic */}
-                        <div className="p-3.5 bg-[#F6F4EE] rounded-xl border border-[#E8E5DD] space-y-2 text-xs">
-                          <div>
-                            <span className="font-bold text-[#1B1B1B] block">Explanation:</span>
-                            <p className="text-[#6F6A60] mt-0.5 leading-relaxed">{item.explanation}</p>
-                          </div>
-
-                          {!item.isCorrect && item.whyMissed && (
-                            <div className="pt-2 border-t border-[#E8E5DD]">
-                              <span className="font-bold text-[#C76A2A] block flex items-center gap-1">
-                                <AlertTriangle className="w-3.5 h-3.5" /> Why You Missed It:
-                              </span>
-                              <p className="text-[#6F6A60] mt-0.5 leading-relaxed">{item.whyMissed}</p>
+                        {/* Best Record Status */}
+                        {bestRecord ? (
+                          <div className="p-3 rounded-xl bg-[#FAF9F5] border border-[#E8E5DD] flex items-center justify-between text-xs">
+                            <div>
+                              <span className="text-[10px] text-[#6F6A60] block uppercase font-semibold">Best Attempt</span>
+                              <span className="font-bold text-[#1B1B1B]">{bestRecord.score}% Score</span>
                             </div>
-                          )}
-                        </div>
-
-                        {/* Dynamic Learning References (Assessment 4.0 requirement) */}
-                        {item.references && (
-                          <div className="p-4 bg-white rounded-xl border border-[#E8E5DD] space-y-2.5">
-                            <span className="text-[11px] font-bold text-[#1B1B1B] uppercase tracking-wider block">
-                              📘 Targeted Learning References for {item.subtopic}:
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                bestRecord.passed ? 'bg-[#2F7A45]/15 text-[#2F7A45]' : 'bg-rose-100 text-rose-700'
+                              }`}
+                            >
+                              {bestRecord.passed ? 'Verified Passed' : 'Below Threshold'}
                             </span>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                              <a
-                                href={item.references.officialDocs.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-2.5 rounded-lg bg-[#F6F4EE] hover:bg-[#E8E5DD] transition-colors flex items-center justify-between text-[#1B1B1B]"
-                              >
-                                <span className="flex items-center gap-2 truncate">
-                                  <span className="text-base">📘</span>
-                                  <span className="truncate font-medium">{item.references.officialDocs.title}</span>
-                                </span>
-                                <ExternalLink className="w-3.5 h-3.5 text-[#6F6A60] shrink-0" />
-                              </a>
-
-                              <a
-                                href={item.references.article.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-2.5 rounded-lg bg-[#F6F4EE] hover:bg-[#E8E5DD] transition-colors flex items-center justify-between text-[#1B1B1B]"
-                              >
-                                <span className="flex items-center gap-2 truncate">
-                                  <span className="text-base">📖</span>
-                                  <span className="truncate font-medium">{item.references.article.title}</span>
-                                </span>
-                                <ExternalLink className="w-3.5 h-3.5 text-[#6F6A60] shrink-0" />
-                              </a>
-
-                              <a
-                                href={item.references.videoTutorial.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-2.5 rounded-lg bg-[#F6F4EE] hover:bg-[#E8E5DD] transition-colors flex items-center justify-between text-[#1B1B1B]"
-                              >
-                                <span className="flex items-center gap-2 truncate">
-                                  <span className="text-base">📺</span>
-                                  <span className="truncate font-medium">{item.references.videoTutorial.title}</span>
-                                </span>
-                                <ExternalLink className="w-3.5 h-3.5 text-[#6F6A60] shrink-0" />
-                              </a>
-
-                              <a
-                                href={item.references.practiceQuestions.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-2.5 rounded-lg bg-[#F6F4EE] hover:bg-[#E8E5DD] transition-colors flex items-center justify-between text-[#1B1B1B]"
-                              >
-                                <span className="flex items-center gap-2 truncate">
-                                  <span className="text-base">📝</span>
-                                  <span className="truncate font-medium">{item.references.practiceQuestions.title}</span>
-                                </span>
-                                <ExternalLink className="w-3.5 h-3.5 text-[#6F6A60] shrink-0" />
-                              </a>
-                            </div>
-
-                            <div className="p-2 rounded-lg bg-[#2F7A45]/5 border border-[#2F7A45]/20 text-[11px] text-[#2F7A45] font-bold flex items-center gap-1.5">
-                              <span>🎯 Mini Assessment Drill:</span>
-                              <span className="font-normal text-[#1B1B1B]">{item.references.miniAssessment.title}</span>
-                            </div>
                           </div>
+                        ) : (
+                          <p className="text-xs text-[#6F6A60] font-medium">
+                            Not attempted yet. Minimum {threshold}% required for skill verification.
+                          </p>
                         )}
                       </div>
-                    ))}
-                </div>
+
+                      <div className="pt-3 border-t border-[#E8E5DD] flex items-center justify-between gap-3">
+                        <span className="text-xs font-mono font-bold text-[#C76A2A]">
+                          Up to {difficultyLabel === 'Expert' ? 250 : difficultyLabel === 'Advanced' ? 175 : 100} XP
+                        </span>
+
+                        <button
+                          onClick={() => handleStartTopic(topic, activeTrack.name, (historyRecords.length || 0) + 1)}
+                          className="px-4 py-2 bg-[#1B1B1B] text-white hover:bg-[#C76A2A] rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-xs"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                          <span>{historyRecords.length > 0 ? 'Retake Diagnostic' : 'Start Assessment'}</span>
+                        </button>
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
-            )}
+            </div>
+          </div>
+        )}
 
-            {/* Tab 3: Performance Analytics */}
-            {activeResultTab === 'analytics' && (
-              <div className="space-y-6">
-                {/* Accuracy Gauge & Difficulty Breakdown */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Accuracy Meter */}
-                  <div className="p-5 bg-white rounded-2xl border border-[#E8E5DD] space-y-4">
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#6F6A60] block">
-                      Overall Accuracy Breakdown
+        {/* MAIN TAB 2: VERIFIED LEADERBOARD */}
+        {mainTab === 'leaderboard' && (
+          <div className="p-6 rounded-3xl bg-white border border-[#E8E5DD] space-y-6 shadow-xs">
+            <div className="flex items-center justify-between border-b border-[#E8E5DD] pb-4">
+              <div>
+                <h2 className="text-lg font-bold text-[#1B1B1B]">Strict Verified Leaderboard</h2>
+                <p className="text-xs text-[#6F6A60]">
+                  Ranks students based exclusively on verified assessment &amp; project proof. Zero participation points awarded.
+                </p>
+              </div>
+              <span className="px-3 py-1 rounded-full bg-[#2F7A45]/15 text-[#2F7A45] text-xs font-bold">
+                Anti-Exploit Enabled
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                { rank: '#1', name: 'Manutej Reddy', college: 'HITAM', dept: 'CSE', score: 890, verifiedSkills: 14, badge: 'Master Architect' },
+                { rank: '#2', name: 'Priya Sharma', college: 'IIT Hyderabad', dept: 'CSE', score: 840, verifiedSkills: 12, badge: 'Systems Engineer' },
+                { rank: '#3', name: 'Ananya Sen', college: 'HITAM', dept: 'IT', score: 790, verifiedSkills: 10, badge: 'Full Stack Dev' },
+                { rank: '#4', name: 'Karthik Raja', college: 'VNR VJIET', dept: 'AIML', score: 720, verifiedSkills: 8, badge: 'AI Practitioner' },
+              ].map((row) => (
+                <div key={row.rank} className="p-4 rounded-2xl bg-[#F6F4EE] border border-[#E8E5DD] flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-3">
+                    <span className="w-8 h-8 rounded-xl bg-[#1B1B1B] text-white font-bold font-mono text-xs flex items-center justify-center">
+                      {row.rank}
                     </span>
-
-                    <div className="flex items-center justify-between">
-                      <div className="text-3xl font-bold font-mono text-[#1B1B1B]">
-                        {viewingRecord.score}%
-                      </div>
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-bold ${
-                          viewingRecord.passed ? 'bg-[#2F7A45]/10 text-[#2F7A45]' : 'bg-red-50 text-red-600'
-                        }`}
-                      >
-                        {viewingRecord.passed ? 'Benchmark Met' : 'Below 70% Benchmark'}
-                      </span>
-                    </div>
-
-                    <div className="w-full h-3 bg-[#F6F4EE] rounded-full overflow-hidden border border-[#E8E5DD]">
-                      <div
-                        className="h-full bg-[#2F7A45] rounded-full"
-                        style={{ width: `${viewingRecord.score}%` }}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-[#E8E5DD]">
-                      <div>
-                        <span className="text-[#6F6A60]">Correct:</span>{' '}
-                        <strong className="text-[#2F7A45]">{viewingRecord.correctCount}</strong>
-                      </div>
-                      <div>
-                        <span className="text-[#6F6A60]">Incorrect:</span>{' '}
-                        <strong className="text-red-500">{viewingRecord.wrongCount}</strong>
-                      </div>
+                    <div>
+                      <strong className="text-[#1B1B1B] text-sm block">{row.name}</strong>
+                      <span className="text-[#6F6A60] text-[11px]">{row.college} • {row.dept}</span>
                     </div>
                   </div>
 
-                  {/* Difficulty Breakdown (Easy / Medium / Hard / Expert) */}
-                  <div className="p-5 bg-white rounded-2xl border border-[#E8E5DD] space-y-3">
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#6F6A60] block">
-                      Difficulty Breakdown
-                    </span>
+                  <div className="flex items-center gap-6 text-right">
+                    <div>
+                      <span className="text-[10px] text-[#6F6A60] uppercase block font-semibold">Verified Skills</span>
+                      <span className="font-bold text-[#2F7A45]">{row.verifiedSkills} Skills</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#6F6A60] uppercase block font-semibold">Builder Score</span>
+                      <span className="font-mono font-bold text-sm text-[#C76A2A]">{row.score} pts</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-                    <div className="space-y-2.5 text-xs">
-                      {(['easy', 'medium', 'hard', 'expert'] as const).map((diff) => {
-                        const data = viewingRecord.difficultyBreakdown?.[diff] || { correct: 0, total: 0 };
-                        const percent = data.total > 0 ? Math.round((data.correct / data.total) * 100) : 0;
+        {/* ACTIVE TEST RUNNER MODAL */}
+        <AnimatePresence>
+          {activeSession && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white border border-[#E8E5DD] rounded-3xl max-w-3xl w-full p-6 shadow-2xl space-y-6 font-sans"
+              >
+                {/* Active Test Header */}
+                <div className="flex items-center justify-between border-b border-[#E8E5DD] pb-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded bg-[#1B1B1B] text-white text-xs font-mono font-bold">
+                        {activeSession.topic}
+                      </span>
+                      {certificationMode && (
+                        <span className="px-2.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1">
+                          <ShieldCheck className="w-3.5 h-3.5" /> Proctored Mode
+                        </span>
+                      )}
+                    </div>
+                    <h2 className="text-lg font-bold text-[#1B1B1B] mt-1">{activeSession.title}</h2>
+                  </div>
+
+                  {/* Countdown Timer & Anti-Cheat Trust Meter */}
+                  <div className="flex items-center gap-3">
+                    <div className="px-3 py-1.5 rounded-xl bg-[#FAF9F5] border border-[#E8E5DD] flex items-center gap-2 text-xs font-mono font-bold text-[#C76A2A]">
+                      <Clock className="w-4 h-4" />
+                      <span>{Math.floor(timeLeftSec / 60)}:{(timeLeftSec % 60).toString().padStart(2, '0')}</span>
+                    </div>
+
+                    <div className="px-3 py-1.5 rounded-xl bg-[#FAF9F5] border border-[#E8E5DD] text-xs font-semibold text-[#6F6A60]">
+                      Tab Switches: <span className="font-bold text-rose-600">{tabSwitches}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Active Question Box */}
+                {activeSession.questions[currentQIndex] && (
+                  <div className="space-y-5">
+                    <div className="flex items-center justify-between text-xs text-[#6F6A60]">
+                      <span className="font-bold text-[#1B1B1B]">
+                        Question {currentQIndex + 1} of {activeSession.questions.length}
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-[#F6F4EE] font-mono font-semibold">
+                        Type: {activeSession.questions[currentQIndex].type || 'MCQ'}
+                      </span>
+                    </div>
+
+                    <h3 className="text-base font-bold text-[#1B1B1B] leading-snug">
+                      {activeSession.questions[currentQIndex].question}
+                    </h3>
+
+                    {/* Code Snippet Box if present */}
+                    {activeSession.questions[currentQIndex].codeSnippet && (
+                      <div className="p-4 rounded-xl bg-[#1B1B1B] text-emerald-400 font-mono text-xs overflow-x-auto border border-[#E8E5DD]">
+                        <pre>{activeSession.questions[currentQIndex].codeSnippet}</pre>
+                      </div>
+                    )}
+
+                    {/* Options List */}
+                    <div className="space-y-3">
+                      {activeSession.questions[currentQIndex].options.map((opt, optIdx) => {
+                        const isSelected = selectedOptionIndex === optIdx;
                         return (
-                          <div key={diff} className="space-y-1">
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold capitalize text-[#1B1B1B]">{diff} Tier</span>
-                              <span className="font-mono text-[#6F6A60]">
-                                {data.correct}/{data.total} ({percent}%)
-                              </span>
-                            </div>
-                            <div className="w-full h-2 bg-[#F6F4EE] rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full ${
-                                  diff === 'expert' ? 'bg-[#C76A2A]' : diff === 'hard' ? 'bg-[#1B1B1B]' : 'bg-[#2F7A45]'
-                                }`}
-                                style={{ width: `${percent}%` }}
-                              />
-                            </div>
-                          </div>
+                          <button
+                            key={opt.id}
+                            onClick={() => handleSelectOption(optIdx)}
+                            className={`w-full p-4 rounded-xl border text-left text-xs font-semibold transition-all flex items-center gap-3 cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#FAF9F5] border-[#C76A2A] text-[#1B1B1B] shadow-xs'
+                                : 'bg-[#F6F4EE] border-[#E8E5DD] hover:border-[#1B1B1B] text-[#6F6A60]'
+                            }`}
+                          >
+                            <span className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${isSelected ? 'border-[#C76A2A] bg-[#C76A2A] text-white' : 'border-[#E8E5DD]'}`}>
+                              {String.fromCharCode(65 + optIdx)}
+                            </span>
+                            <span>{opt.text}</span>
+                          </button>
                         );
                       })}
                     </div>
                   </div>
-                </div>
+                )}
 
-                {/* Topic Strength Analysis */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-5 bg-[#2F7A45]/5 rounded-2xl border border-[#2F7A45]/30 space-y-3">
-                    <div className="flex items-center gap-2 text-xs font-bold text-[#2F7A45] uppercase">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Strong Areas</span>
-                    </div>
-                    <ul className="space-y-2 text-xs text-[#1B1B1B]">
-                      {viewingRecord.strongAreas.map((area) => (
-                        <li key={area} className="flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#2F7A45]" />
-                          <span className="font-bold">{area}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="p-5 bg-red-50/40 rounded-2xl border border-red-200 space-y-3">
-                    <div className="flex items-center gap-2 text-xs font-bold text-red-600 uppercase">
-                      <AlertTriangle className="w-4 h-4" />
-                      <span>Weak Areas</span>
-                    </div>
-                    <ul className="space-y-2 text-xs text-[#1B1B1B]">
-                      {viewingRecord.weakAreas.map((area) => (
-                        <li key={area} className="flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                          <span className="font-bold">{area}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-
-                {/* Skill Gap Analysis with Recommendations */}
-                <div className="p-5 bg-white rounded-2xl border border-[#E8E5DD] space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-bold text-[#1B1B1B]">Skill Gap Analysis</h4>
-                      <p className="text-xs text-[#6F6A60]">Automatic detection of weak concepts with remediation directives.</p>
-                    </div>
-                    <span className="px-2.5 py-0.5 rounded-md bg-[#C76A2A]/10 text-[#C76A2A] text-xs font-bold font-mono">
-                      {viewingRecord.skillGapRecommendations?.length || 0} Gaps Detected
-                    </span>
-                  </div>
-
-                  <div className="space-y-2.5">
-                    {viewingRecord.skillGapRecommendations?.map((gap, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3.5 bg-[#F6F4EE] rounded-xl border border-[#E8E5DD] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                      >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-[#1B1B1B]">{gap.concept}</span>
-                            <span className="px-2 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-bold">
-                              {gap.gapSeverity}
-                            </span>
-                          </div>
-                          <p className="text-[#6F6A60]">{gap.action}</p>
-                        </div>
-
-                        <a
-                          href={gap.resourceUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-3 py-1.5 bg-white border border-[#E8E5DD] hover:border-[#1B1B1B] text-[#1B1B1B] font-bold rounded-lg text-xs flex items-center gap-1.5 shrink-0 self-start sm:self-auto cursor-pointer"
-                        >
-                          <span>Review Concept</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Tab 4: AI Learning Recommendations (5-Day Structured Plan) */}
-            {activeResultTab === 'plan' && (
-              <div className="space-y-5">
-                <div className="p-4 bg-[#F6F4EE] rounded-2xl border border-[#E8E5DD] space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-[#C76A2A]" />
-                    <h3 className="text-sm font-bold text-[#1B1B1B]">Personalized 5-Day Improvement Plan</h3>
-                  </div>
-                  <p className="text-xs text-[#6F6A60]">
-                    Generated by SkillBridge AI Engine based on your missed questions in {viewingRecord.topic}. Complete these drills before your next attempt.
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  {viewingRecord.aiStudyPlan?.map((planItem, idx) => (
-                    <div
-                      key={idx}
-                      className="p-4 bg-white rounded-2xl border border-[#E8E5DD] space-y-2 hover:border-[#1B1B1B] transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-md bg-[#1B1B1B] text-white text-xs font-mono font-bold">
-                            {planItem.day}
-                          </span>
-                          <h4 className="text-xs sm:text-sm font-bold text-[#1B1B1B]">{planItem.title}</h4>
-                        </div>
-                        <span className="text-xs text-[#6F6A60] font-mono flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> {planItem.estimatedMinutes} Mins
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
-                        <div className="p-2.5 bg-[#F6F4EE] rounded-xl">
-                          <span className="text-[10px] text-[#6F6A60] uppercase font-bold block">Focus Area</span>
-                          <p className="font-medium text-[#1B1B1B] mt-0.5">{planItem.focus}</p>
-                        </div>
-                        <div className="p-2.5 bg-[#F6F4EE] rounded-xl">
-                          <span className="text-[10px] text-[#6F6A60] uppercase font-bold block">Daily Action Item</span>
-                          <p className="font-medium text-[#1B1B1B] mt-0.5">{planItem.task}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Retake CTA */}
-                <div className="p-5 bg-white rounded-2xl border border-[#E8E5DD] text-center space-y-3">
-                  <h4 className="text-sm font-bold text-[#1B1B1B]">Ready to certify after your preparation?</h4>
+                {/* Footer Controls */}
+                <div className="pt-4 border-t border-[#E8E5DD] flex items-center justify-between">
                   <button
-                    onClick={() => {
-                      const nextAttempt = (assessmentHistory[viewingRecord.topic] || []).length + 1;
-                      setViewingRecord(null);
-                      handleStartTopic(viewingRecord.topic, viewingRecord.department, nextAttempt);
-                    }}
-                    className="px-6 py-2.5 bg-[#1B1B1B] hover:bg-[#C76A2A] text-white text-xs font-bold rounded-xl transition-colors shadow-xs cursor-pointer inline-flex items-center gap-2"
+                    onClick={() => setActiveSession(null)}
+                    className="px-4 py-2 border border-[#E8E5DD] rounded-xl text-xs font-semibold text-rose-700 hover:bg-rose-50"
                   >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Launch Retake Assessment (Attempt #{viewingRecord.attemptNumber + 1})</span>
+                    Quit Assessment
+                  </button>
+
+                  <button
+                    onClick={handleNextQuestion}
+                    disabled={selectedOptionIndex === null}
+                    className="px-6 py-2.5 bg-[#1B1B1B] disabled:opacity-50 text-white hover:bg-[#C76A2A] rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5"
+                  >
+                    <span>{currentQIndex === activeSession.questions.length - 1 ? 'Finish Evaluation' : 'Next Question'}</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
-              </div>
-            )}
-
-            {/* Modal Bottom Close */}
-            <div className="pt-3 border-t border-[#E8E5DD] flex items-center justify-between">
-              <button
-                onClick={() => setViewingRecord(null)}
-                className="px-4 py-2 bg-[#F6F4EE] hover:bg-[#E8E5DD] text-[#1B1B1B] text-xs font-bold rounded-xl transition-colors cursor-pointer"
-              >
-                Close Report
-              </button>
-
-              <button
-                onClick={() => {
-                  const nextAttempt = (assessmentHistory[viewingRecord.topic] || []).length + 1;
-                  setViewingRecord(null);
-                  handleStartTopic(viewingRecord.topic, viewingRecord.department, nextAttempt);
-                }}
-                className="px-5 py-2 bg-[#1B1B1B] hover:bg-[#C76A2A] text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Retake Path</span>
-              </button>
+              </motion.div>
             </div>
+          )}
+        </AnimatePresence>
 
-          </div>
-        </div>
-      )}
+        {/* POST ASSESSMENT REPORT MODAL */}
+        <AnimatePresence>
+          {viewingRecord && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white border border-[#E8E5DD] rounded-3xl max-w-3xl w-full p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto font-sans"
+              >
+                {/* Modal Header */}
+                <div className="flex items-center justify-between border-b border-[#E8E5DD] pb-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded bg-[#1B1B1B] text-white text-xs font-mono font-bold">
+                        {viewingRecord.topic}
+                      </span>
+                      <span
+                        className={`px-2.5 py-0.5 rounded text-xs font-bold ${
+                          viewingRecord.passed ? 'bg-[#2F7A45]/15 text-[#2F7A45]' : 'bg-rose-100 text-rose-800'
+                        }`}
+                      >
+                        {viewingRecord.passed ? 'PASSED VERIFICATION' : 'BELOW THRESHOLD (0 XP)'}
+                      </span>
+                    </div>
+                    <h2 className="text-xl font-bold text-[#1B1B1B] mt-1">Diagnostic Evaluation Report</h2>
+                  </div>
 
+                  <button
+                    onClick={() => setViewingRecord(null)}
+                    className="p-1.5 rounded-lg text-[#6F6A60] hover:bg-[#F6F4EE]"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Score & Metric Summary Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center text-xs">
+                  <div className="p-4 rounded-2xl bg-[#F6F4EE] border border-[#E8E5DD]">
+                    <span className="text-[10px] text-[#6F6A60] uppercase font-semibold block">Final Score</span>
+                    <span className="text-2xl font-bold text-[#1B1B1B]">{viewingRecord.score}%</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-[#F6F4EE] border border-[#E8E5DD]">
+                    <span className="text-[10px] text-[#6F6A60] uppercase font-semibold block">Strict XP Earned</span>
+                    <span className="text-2xl font-bold text-[#C76A2A]">+{viewingRecord.xpEarned} XP</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-[#F6F4EE] border border-[#E8E5DD]">
+                    <span className="text-[10px] text-[#6F6A60] uppercase font-semibold block">Builder Score Impact</span>
+                    <span className="text-2xl font-bold text-[#2F7A45]">+{viewingRecord.builderScoreImpact} pts</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-[#F6F4EE] border border-[#E8E5DD]">
+                    <span className="text-[10px] text-[#6F6A60] uppercase font-semibold block">Trust Score</span>
+                    <span className="text-2xl font-bold text-[#1B1B1B]">
+                      {antiCheatingLog?.trustScore || 100}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Skill Confidence Matrix Visualization */}
+                {skillMatrix && (
+                  <div className="p-5 rounded-2xl bg-white border border-[#E8E5DD] space-y-3">
+                    <div className="flex items-center justify-between border-b border-[#E8E5DD] pb-2">
+                      <h3 className="text-sm font-bold text-[#1B1B1B] flex items-center gap-2">
+                        <Brain className="w-4 h-4 text-[#C76A2A]" />
+                        <span>Dynamic Skill Confidence Matrix</span>
+                      </h3>
+                      <span className="text-xs font-mono font-bold text-[#2F7A45]">
+                        Confidence: {skillMatrix.confidencePct}%
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                      {skillMatrix.sources.map((src, i) => (
+                        <div key={i} className="p-2.5 rounded-xl bg-[#F6F4EE] border border-[#E8E5DD]">
+                          <span className="text-[10px] text-[#6F6A60] block font-semibold">{src.name} ({src.weightPct}%)</span>
+                          <span className="font-bold text-[#1B1B1B]">{src.score}% Score</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Close Button */}
+                <div className="pt-2 flex justify-end">
+                  <button
+                    onClick={() => setViewingRecord(null)}
+                    className="px-6 py-2.5 bg-[#1B1B1B] text-white rounded-xl text-xs font-semibold hover:bg-[#C76A2A] transition-colors"
+                  >
+                    Close Report
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+      </div>
     </PortalLayout>
   );
 }
